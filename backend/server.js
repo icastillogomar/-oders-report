@@ -35,8 +35,9 @@ app.get('/api/orders-summary', async (req, res) => {
   try {
     const start = req.query.start || '2026-04-01';
     const end = req.query.end || '2026-05-01';
+    const company = req.query.company || 'LP';
 
-    // Validación básica de formato YYYY-MM-DD
+    // Validación básica
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(start) || !dateRegex.test(end)) {
       return res.status(400).json({
@@ -57,7 +58,7 @@ app.get('/api/orders-summary', async (req, res) => {
           JSON_EXTRACT_SCALAR(data, '$.edd1') AS edd1,
           JSON_EXTRACT_SCALAR(data, '$.edd2') AS edd2
         FROM \`fechaestimadaentregaprod.alltables.tables_raw_changelog\`
-        WHERE JSON_EXTRACT_SCALAR(data, '$.company') = 'LP'
+        WHERE JSON_EXTRACT_SCALAR(data, '$.company') = @company
           AND JSON_EXTRACT_SCALAR(data, '$.productType') = 'Soft Line'
           AND timestamp >= TIMESTAMP(@start, 'America/Mexico_City')
           AND timestamp <  TIMESTAMP(@end,   'America/Mexico_City')
@@ -90,6 +91,7 @@ app.get('/api/orders-summary', async (req, res) => {
       params: {
         start: `${start} 00:00:00`,
         end: `${end} 00:00:00`,
+        company: company,
       },
       location: process.env.BQ_LOCATION || 'US',
     });
@@ -103,7 +105,7 @@ app.get('/api/orders-summary', async (req, res) => {
       Total: Number(r.Total),
     }));
 
-    res.json({ data, range: { start, end } });
+    res.json({ data, range: { start, end }, company });
   } catch (error) {
     console.error('BigQuery error:', error);
     res.status(500).json({ error: error.message });

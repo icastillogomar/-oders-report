@@ -17,6 +17,17 @@ const monthAbbr = [
 ];
 
 function BarChart({ data }) {
+  // Lee la fuente y los colores desde las CSS custom properties para
+  // mantener consistencia con el resto del dashboard.
+  const root = getComputedStyle(document.documentElement);
+  const brandColor = root.getPropertyValue('--brand-primary').trim() || '#e10098';
+  const planBColor = root.getPropertyValue('--plan-b').trim() || '#f59e0b';
+  const errorColor = root.getPropertyValue('--error').trim() || '#ef4444';
+  const text3 = root.getPropertyValue('--text-3').trim() || '#6b7280';
+  const border = root.getPropertyValue('--border').trim() || '#e6e8eb';
+  const fontFamily =
+    "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
   const labels = data.map((d) => {
     const [y, m, day] = d.Fecha.split('-');
     return `${parseInt(day, 10)} ${monthAbbr[parseInt(m, 10) - 1]} ${y}`;
@@ -34,19 +45,24 @@ function BarChart({ data }) {
         label: 'Plan A',
         data: pctA,
         absolute: data.map((d) => d.Plan_A),
-        backgroundColor: '#0072f0',
-      },
-      {
-        label: 'Error',
-        data: pctE,
-        absolute: data.map((d) => d.Error),
-        backgroundColor: '#f15a60',
+        backgroundColor: brandColor,
+        borderRadius: { topLeft: 4, topRight: 4 },
+        borderSkipped: false,
       },
       {
         label: 'Plan B',
         data: pctB,
         absolute: data.map((d) => d.Plan_B),
-        backgroundColor: '#ffa800',
+        backgroundColor: planBColor,
+        borderRadius: 0,
+      },
+      {
+        label: 'Error',
+        data: pctE,
+        absolute: data.map((d) => d.Error),
+        backgroundColor: errorColor,
+        borderRadius: { topLeft: 4, topRight: 4 },
+        borderSkipped: false,
       },
     ],
   };
@@ -55,27 +71,38 @@ function BarChart({ data }) {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
+    animation: {
+      duration: 600,
+      easing: 'easeOutQuart',
+    },
     plugins: {
       legend: {
         position: 'top',
-        align: 'start',
+        align: 'end',
         labels: {
           usePointStyle: true,
-          pointStyle: 'rect',
-          padding: 16,
-          font: { size: 13, weight: '600' },
+          pointStyle: 'circle',
+          padding: 18,
+          font: { family: fontFamily, size: 12, weight: '600' },
+          color: text3,
+          boxWidth: 8,
+          boxHeight: 8,
         },
       },
       tooltip: {
-        backgroundColor: 'rgba(26,35,50,0.95)',
+        backgroundColor: 'rgba(10, 22, 40, 0.96)',
         padding: 12,
-        titleFont: { size: 13, weight: '600' },
-        bodyFont: { size: 12 },
+        cornerRadius: 8,
+        titleFont: { family: fontFamily, size: 12, weight: '600' },
+        bodyFont: { family: fontFamily, size: 12 },
+        bodySpacing: 6,
+        boxPadding: 6,
+        usePointStyle: true,
         callbacks: {
           label: (ctx) => {
             const pct = ctx.parsed.y.toFixed(2);
             const abs = ctx.dataset.absolute[ctx.dataIndex];
-            return `${ctx.dataset.label}: ${pct}% (${abs.toLocaleString('en-US')})`;
+            return `  ${ctx.dataset.label}: ${pct}%  ·  ${abs.toLocaleString('es-MX')}`;
           },
         },
       },
@@ -84,9 +111,10 @@ function BarChart({ data }) {
       x: {
         stacked: true,
         grid: { display: false },
+        border: { color: border },
         ticks: {
-          font: { size: 10 },
-          color: '#6b7280',
+          font: { family: fontFamily, size: 10, weight: '500' },
+          color: text3,
           maxRotation: 45,
           minRotation: 45,
         },
@@ -95,11 +123,13 @@ function BarChart({ data }) {
         stacked: true,
         beginAtZero: true,
         max: 100,
-        grid: { color: '#e5e7eb' },
+        grid: { color: border, drawTicks: false },
+        border: { display: false },
         ticks: {
-          font: { size: 11 },
-          color: '#6b7280',
+          font: { family: fontFamily, size: 11 },
+          color: text3,
           stepSize: 20,
+          padding: 8,
           callback: (v) => v + '%',
         },
       },
