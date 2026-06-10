@@ -8,6 +8,7 @@ import {
   Inbox,
   Clock,
   BarChart3,
+  Download,
 } from 'lucide-react';
 import KpiCards from './components/KpiCards.jsx';
 import BarChart from './components/BarChart.jsx';
@@ -38,7 +39,7 @@ const previousRange = (startISO, endISO) => {
   return { start: toISO(prevStart), end: toISO(prevEnd) };
 };
 
-/* ───────────────────────── quick ranges ──────────────────── */
+/* ───────────────────────── config ────────────────────────── */
 const QUICK_RANGES = [
   { key: 'today', label: 'Hoy', days: 0 },
   { key: '7d', label: 'Últimos 7 días', days: 6 },
@@ -46,14 +47,16 @@ const QUICK_RANGES = [
   { key: 'mtd', label: 'Este mes', days: null },
 ];
 
+const MULTISITE_DECOMM = ['WS', 'DCK', 'GAP', 'PB', 'PBK', 'BRU'];
+
 function App() {
   const [data, setData] = useState([]);
   const [previousData, setPreviousData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [startDate, setStartDate] = useState('2026-04-01');
-  const [endDate, setEndDate] = useState('2026-05-01');
-  const [company, setCompany] = useState('LP');
+  const [endDate, setEndDate] = useState('2026-05-27');
+  const [company, setCompany] = useState('LP'); // LP, SBB, LP_DECOMM, SBB_DECOMM, LP_RECALC, etc.
   const [activeQuick, setActiveQuick] = useState(null);
 
   /* ── Fetch principal + rango previo (para tendencias) ── */
@@ -62,12 +65,25 @@ function App() {
     setError(null);
     try {
       const prev = previousRange(startDate, endDate);
+      const isDecomm = company.includes('DECOMM');
+      const isRecalc = company.includes('RECALC');
+      
+      let endpoint = '/api/orders-summary';
+      if (isDecomm) endpoint = '/api/orders-decomm';
+      if (isRecalc) endpoint = '/api/orders-recalculate';
+
+      // Mapeo de compañías para BigQuery
+      let finalCompany = company.replace('_DECOMM', '').replace('_RECALC', '');
+      if ((isDecomm || isRecalc) && finalCompany === 'SBB') {
+        finalCompany = 'SB';
+      }
+
       const [resCurr, resPrev] = await Promise.all([
         fetch(
-          `/api/orders-summary?start=${startDate}&end=${endDate}&company=${company}`
+          `${endpoint}?start=${startDate}&end=${endDate}&company=${finalCompany}`
         ),
         fetch(
-          `/api/orders-summary?start=${prev.start}&end=${prev.end}&company=${company}`
+          `${endpoint}?start=${prev.start}&end=${prev.end}&company=${finalCompany}`
         ).catch(() => null),
       ]);
 
@@ -92,11 +108,29 @@ function App() {
     }
   }, [startDate, endDate, company]);
 
+  const handleDownloadCSV = () => {
+    const isDecomm = company.includes('DECOMM');
+    const isRecalc = company.includes('RECALC');
+    
+    let type = 'summary';
+    if (isDecomm) type = 'decomm';
+    if (isRecalc) type = 'recalc';
+
+    let finalCompany = company.replace('_DECOMM', '').replace('_RECALC', '');
+    if ((isDecomm || isRecalc) && finalCompany === 'SBB') {
+      finalCompany = 'SB';
+    }
+
+    const url = `/api/orders-csv?start=${startDate}&end=${endDate}&company=${finalCompany}&type=${type}`;
+    window.open(url, '_blank');
+  };
+
   useEffect(() => {
     fetchData();
     // Color de marca dinámico + data-attribute para el tema
-    const brandColor = company === 'LP' ? '#e10098' : '#552166';
-    const brandRgb = company === 'LP' ? '225, 0, 152' : '85, 33, 102';
+    const isLP = company.startsWith('LP');
+    const brandColor = isLP ? '#e10098' : '#552166';
+    const brandRgb = isLP ? '225, 0, 152' : '85, 33, 102';
     document.documentElement.style.setProperty('--brand-primary', brandColor);
     document.documentElement.style.setProperty('--brand-primary-rgb', brandRgb);
     document.documentElement.setAttribute('data-company', company);
@@ -122,7 +156,6 @@ function App() {
     setActiveQuick(range.key);
   };
 
-  // Si el usuario edita las fechas manualmente, desactivamos el chip
   const handleDateChange = (setter) => (e) => {
     setter(e.target.value);
     setActiveQuick(null);
@@ -135,6 +168,18 @@ function App() {
     return `${s} → ${e}`;
   }, [startDate, endDate]);
 
+  const siteTitle = useMemo(() => {
+    if (company.startsWith('LP')) return 'Liverpool';
+    if (company.startsWith('SBB')) return 'Suburbia';
+    return company.replace('_DECOMM', '').replace('_RECALC', '');
+  }, [company]);
+
+  const reportSource = useMemo(() => {
+    if (company.includes('RECALC')) return 'FAC_EDD_RECALCULATE_TRN';
+    if (company.includes('DECOMM')) return 'FAC_EDD_ORDERS_TRN';
+    return 'tables_raw_changelog';
+  }, [company]);
+
   return (
     <div className="container">
       {/* ─── Header ─── */}
@@ -145,12 +190,13 @@ function App() {
           </div>
           <div>
             <h1>
-              Reporte Ejecutivo · Pedidos{' '}
-              {company === 'LP' ? 'Liverpool' : 'Suburbia'}
+              Reporte Ejecutivo · Pedidos {siteTitle}
+              {company.includes('DECOMM') ? ' (Decomm)' : ''}
+              {company.includes('RECALC') ? ' (Recalculo)' : ''}
             </h1>
             <p className="subtitle">
               Distribución diaria de pedidos por plan: A, B y Error · Compañía{' '}
-              {company} · Soft Line
+              {company.replace('_DECOMM', '').replace('_RECALC', '')} · {reportSource}
             </p>
           </div>
         </div>
@@ -164,6 +210,7 @@ function App() {
 
       {/* ─── Tabs compañía ─── */}
       <div className="tabs" role="tablist" aria-label="Compañía">
+        {/* Principales */}
         <button
           role="tab"
           aria-selected={company === 'LP'}
@@ -180,6 +227,47 @@ function App() {
         >
           Suburbia · SBB
         </button>
+        
+        {/* Decomm Principales */}
+        <button
+          role="tab"
+          aria-selected={company === 'LP_DECOMM'}
+          className={`tab-btn ${company === 'LP_DECOMM' ? 'active' : ''}`}
+          onClick={() => setCompany('LP_DECOMM')}
+        >
+          LP Decomm
+        </button>
+        <button
+          role="tab"
+          aria-selected={company === 'SBB_DECOMM'}
+          className={`tab-btn ${company === 'SBB_DECOMM' ? 'active' : ''}`}
+          onClick={() => setCompany('SBB_DECOMM')}
+        >
+          SBB Decomm
+        </button>
+
+        {/* Recalculo */}
+        <button
+          role="tab"
+          aria-selected={company === 'LP_RECALC'}
+          className={`tab-btn ${company === 'LP_RECALC' ? 'active' : ''}`}
+          onClick={() => setCompany('LP_RECALC')}
+        >
+          Recalculo Decomm
+        </button>
+
+        {/* Multisite Decomm */}
+        {MULTISITE_DECOMM.map((site) => (
+          <button
+            key={site}
+            role="tab"
+            aria-selected={company === `${site}_DECOMM`}
+            className={`tab-btn ${company === `${site}_DECOMM` ? 'active' : ''}`}
+            onClick={() => setCompany(`${site}_DECOMM`)}
+          >
+            {site} Decomm
+          </button>
+        ))}
       </div>
 
       {/* ─── Filtros ─── */}
@@ -227,23 +315,48 @@ function App() {
             </div>
           </div>
 
-          <button
-            className="btn-primary"
-            onClick={fetchData}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <span className="spinner" aria-hidden="true" />
-                Cargando…
-              </>
-            ) : (
-              <>
-                <RefreshCcw size={15} strokeWidth={2.4} />
-                Actualizar
-              </>
-            )}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <button
+              className="btn-primary"
+              onClick={fetchData}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  Cargando…
+                </>
+              ) : (
+                <>
+                  <RefreshCcw size={15} strokeWidth={2.4} />
+                  Actualizar
+                </>
+              )}
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={handleDownloadCSV}
+              disabled={loading || data.length === 0}
+              title="Descargar pedidos con Error o Plan B en CSV"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '0 16px',
+                height: '38px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--surface-color)',
+                color: 'var(--text-color)',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '500',
+              }}
+            >
+              <Download size={15} strokeWidth={2.4} />
+              Exportar
+            </button>
+          </div>
         </div>
       </div>
 
@@ -296,7 +409,7 @@ function App() {
       )}
 
       <footer>
-        Fuente: <code>tables_raw_changelog</code> · Hora local: América/México
+        Fuente: <code>{reportSource}</code> · Hora local: América/México
       </footer>
     </div>
   );
