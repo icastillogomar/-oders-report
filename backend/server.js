@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { BigQuery } from '@google-cloud/bigquery';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import firebaseRoutes from './firebase/firebase.routes.js';
+import bigqueryRoutes from './bigquery/bigquery.routes.js';
 
 dotenv.config();
 
@@ -15,6 +17,12 @@ const port = Number(process.env.PORT) || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Firebase Search Module ──────────────────────────────────────────
+app.use('/api/firebase', firebaseRoutes);
+
+// ─── BigQuery Search Module ─────────────────────────────────────────
+app.use('/api/bigquery', bigqueryRoutes);
 
 // ─── BigQuery client ────────────────────────────────────────────────
 // La Service Account NUNCA debe exponerse en el frontend.

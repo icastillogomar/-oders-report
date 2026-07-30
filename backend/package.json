@@ -12,6 +12,10 @@
     "@google-cloud/bigquery": "^7.9.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.21.0"
+    "exceljs": "^4.4.0",
+    "express": "^4.21.0",
+    "firebase-admin": "^14.1.0",
+    "multer": "^2.2.0",
+    "xlsx": "^0.18.5"
   }
 }
