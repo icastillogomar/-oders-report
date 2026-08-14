@@ -190,6 +190,7 @@ export function combineAndFormatResults(extractedOrders, firestoreResults) {
         const canal = getFirstValue(doc, ['canal', 'channel', 'salesChannel', 'company', 'enterpriseCode']);
         const cp = getFirstValue(doc, ['cp', 'zipCode', 'postalCode', 'zip_code']);
         const calle = getFirstValue(doc, ['calle', 'street', 'address', 'direccion']);
+        const createdAt = getFirstValue(doc, ['createdAt']);
         const store = getFirstValue(doc, ['store', 'storeId', 'tienda', 'storeName', 'store_id']);
         
         // Manejo de fechas
@@ -222,6 +223,7 @@ export function combineAndFormatResults(extractedOrders, firestoreResults) {
           Canal: canal,
           CP: cp,
           Calle: calle,
+          createdAt: fechaCompra, // Reutilizamos la fecha de compra formateada
           Store: store,
           Error: 'No',
           ErrorMessage: '',
@@ -246,6 +248,7 @@ export function combineAndFormatResults(extractedOrders, firestoreResults) {
         Canal: 'N/A',
         CP: 'N/A',
         Calle: 'N/A',
+        createdAt: 'N/A',
         Store: 'N/A',
         Error: 'Sí',
         ErrorMessage: 'No encontrado en la colección de Firestore.',

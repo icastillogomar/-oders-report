@@ -22,6 +22,7 @@ export function generateCsvString(data) {
     'Canal',
     'CP',
     'Calle',
+    'createdAt',
     'Store',
     'Error',
     'ErrorMessage'
