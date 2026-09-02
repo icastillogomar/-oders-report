@@ -16,13 +16,18 @@ const monthAbbr = [
   'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
 ];
 
-function BarChart({ data, hideError = false }) {
-  // Lee la fuente y los colores desde las CSS custom properties para
-  // mantener consistencia con el resto del dashboard.
+/**
+ * Barra 100% apilada por día con la composición de tipos de entrega:
+ * Flash Mismo Día, Siguiente Día, Estándar y Sin EDD.
+ * Colores desde CSS custom properties (--viz-*) para respetar el tema.
+ */
+function DeliveryChart({ data }) {
   const root = getComputedStyle(document.documentElement);
-  const brandColor = root.getPropertyValue('--brand-primary').trim() || '#e10098';
-  const planBColor = root.getPropertyValue('--plan-b').trim() || '#f59e0b';
-  const errorColor = root.getPropertyValue('--error').trim() || '#ef4444';
+  const flashColor = root.getPropertyValue('--viz-flash').trim() || '#e10098';
+  const nextdayColor = root.getPropertyValue('--viz-nextday').trim() || '#3b82f6';
+  const standardColor = root.getPropertyValue('--viz-standard').trim() || '#64748b';
+  const noeddColor = root.getPropertyValue('--viz-noedd').trim() || '#ef4444';
+  const surface = root.getPropertyValue('--surface').trim() || '#ffffff';
   const text3 = root.getPropertyValue('--text-3').trim() || '#6b7280';
   const border = root.getPropertyValue('--border').trim() || '#e6e8eb';
   const fontFamily =
@@ -34,42 +39,29 @@ function BarChart({ data, hideError = false }) {
   });
 
   const pctOf = (val, total) => (total ? (val / total) * 100 : 0);
-  const pctA = data.map((d) => pctOf(d.Plan_A, d.Total));
-  const pctB = data.map((d) => pctOf(d.Plan_B, d.Total));
-  const pctE = data.map((d) => pctOf(d.Error, d.Total));
 
-  const datasets = [
-    {
-      label: 'Plan A',
-      data: pctA,
-      absolute: data.map((d) => d.Plan_A),
-      backgroundColor: brandColor,
-      borderRadius: { topLeft: 4, topRight: 4 },
-      borderSkipped: false,
-    },
-    {
-      label: 'Plan B',
-      data: pctB,
-      absolute: data.map((d) => d.Plan_B),
-      backgroundColor: planBColor,
-      // Si el Error está oculto, Plan B queda hasta arriba del stack
-      borderRadius: hideError ? { topLeft: 4, topRight: 4 } : 0,
-      borderSkipped: false,
-    },
+  const series = [
+    { key: 'Flash', label: 'Flash Mismo Día', color: flashColor },
+    { key: 'Siguiente_Dia', label: 'Siguiente Día', color: nextdayColor },
+    { key: 'Estandar', label: 'Estándar', color: standardColor },
+    { key: 'Sin_EDD', label: 'Sin EDD', color: noeddColor },
   ];
 
-  if (!hideError) {
-    datasets.push({
-      label: 'Error',
-      data: pctE,
-      absolute: data.map((d) => d.Error),
-      backgroundColor: errorColor,
-      borderRadius: { topLeft: 4, topRight: 4 },
+  const chartData = {
+    labels,
+    datasets: series.map((s, i) => ({
+      label: s.label,
+      data: data.map((d) => pctOf(d[s.key], d.Total)),
+      absolute: data.map((d) => d[s.key]),
+      backgroundColor: s.color,
+      // Separador de 2px color superficie entre segmentos apilados
+      borderColor: surface,
+      borderWidth: { top: 2 },
       borderSkipped: false,
-    });
-  }
-
-  const chartData = { labels, datasets };
+      borderRadius:
+        i === series.length - 1 ? { topLeft: 4, topRight: 4 } : 0,
+    })),
+  };
 
   const options = {
     responsive: true,
@@ -147,4 +139,4 @@ function BarChart({ data, hideError = false }) {
   );
 }
 
-export default BarChart;
+export default DeliveryChart;

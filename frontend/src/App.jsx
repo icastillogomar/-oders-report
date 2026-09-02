@@ -8,10 +8,26 @@ import {
   Inbox,
   Clock,
   BarChart3,
+  PieChart,
   Download,
+  Zap,
+  Layers,
+  Store,
+  PackageSearch,
+  FileSpreadsheet,
+  Home,
+  Truck,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import KpiCards from './components/KpiCards.jsx';
 import BarChart from './components/BarChart.jsx';
+import DeliveryKpis from './components/DeliveryKpis.jsx';
+import DeliveryChart from './components/DeliveryChart.jsx';
+import StoreRanking from './components/StoreRanking.jsx';
+import OrderSearch from './components/OrderSearch.jsx';
+import BulkOrderCheck from './components/BulkOrderCheck.jsx';
+import ErrorCodePie from './components/ErrorCodePie.jsx';
 import { KpiSkeleton, ChartSkeleton } from './components/Skeleton.jsx';
 
 /* ───────────────────────── helpers ───────────────────────── */
@@ -49,42 +65,108 @@ const QUICK_RANGES = [
 
 const MULTISITE_DECOMM = ['WS', 'DCK', 'GAP', 'PB', 'PBK', 'BRU'];
 
+/** Normaliza el código de compañía para BigQuery (quita sufijos de vista) */
+const toBQCompany = (company) => {
+  let c = company
+    .replace('_DECOMM', '')
+    .replace('_RECALC', '')
+    .replace('_BT_ATG', '')
+    .replace('_BT_DECOMM', '');
+  if (c === 'SBB') c = 'SB';
+  return c;
+};
+
 function App() {
   const [data, setData] = useState([]);
   const [previousData, setPreviousData] = useState([]);
+  const [deliveryData, setDeliveryData] = useState(null); // { byDay, stores, totals }
+  const [errorCodes, setErrorCodes] = useState(null); // { data, total } · solo SBB Decomm
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [startDate, setStartDate] = useState('2026-04-01');
   const [endDate, setEndDate] = useState('2026-05-27');
-  const [company, setCompany] = useState('LP'); // LP, SBB, LP_DECOMM, SBB_DECOMM, LP_RECALC, etc.
+  const [company, setCompany] = useState('LP'); // LP, SBB, LP_DECOMM, LP_BT_ATG, LP_BT_DECOMM, etc.
+  const [view, setView] = useState('planes'); // 'planes' | 'entregas' | 'buscar' | 'cotejar'
+  // Filtro de tipo de surtido: 'all' | 'Fulfillment_Type_Liverpool' | 'Liverpool_CNC_PICK_PACK'
+  const [fulfillment, setFulfillment] = useState('all');
+  // Mostrar/ocultar la serie % Error en la gráfica (solo tab SBB Decomm)
+  const [showErrorSeries, setShowErrorSeries] = useState(true);
   const [activeQuick, setActiveQuick] = useState(null);
+
+  /* Parámetros del desglose por errorCode. Los comparten el fetch de la dona
+     y la descarga de cada segmento, así el CSV siempre corresponde a lo que
+     está en pantalla (rango, compañía y tipo de surtido). */
+  const errorCodesQuery = useMemo(() => {
+    const p = new URLSearchParams({
+      start: startDate,
+      end: endDate,
+      company: toBQCompany(company),
+    });
+    if (company.includes('_BT_')) p.set('productType', 'Big Ticket');
+    if (fulfillment !== 'all') p.set('fulfillmentType', fulfillment);
+    return p.toString();
+  }, [startDate, endDate, company, fulfillment]);
 
   /* ── Fetch principal + rango previo (para tendencias) ── */
   const fetchData = useCallback(async () => {
+    /* Las vistas Buscar Orden y Cotejar manejan su propio fetch */
+    if (view === 'buscar' || view === 'cotejar') {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
+      /* Vista Tipos de Entrega: un solo fetch a /api/delivery-types */
+      if (view === 'entregas') {
+        const isBT = company.includes('_BT_');
+        let params = `?start=${startDate}&end=${endDate}&company=${toBQCompany(company)}`;
+        if (isBT) params += '&productType=Big Ticket';
+
+        const res = await fetch(`/api/delivery-types${params}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        const json = await res.json();
+        setDeliveryData(json);
+        return;
+      }
+
       const prev = previousRange(startDate, endDate);
-      const isDecomm = company.includes('DECOMM');
+      const isDecomm = company.includes('DECOMM') || company === 'LP_BT_DECOMM';
       const isRecalc = company.includes('RECALC');
+      const isBT = company.includes('_BT_');
       
       let endpoint = '/api/orders-summary';
       if (isDecomm) endpoint = '/api/orders-decomm';
       if (isRecalc) endpoint = '/api/orders-recalculate';
 
       // Mapeo de compañías para BigQuery
-      let finalCompany = company.replace('_DECOMM', '').replace('_RECALC', '');
+      let finalCompany = company.replace('_DECOMM', '').replace('_RECALC', '').replace('_BT_ATG', '').replace('_BT_DECOMM', '');
       if ((isDecomm || isRecalc) && finalCompany === 'SBB') {
         finalCompany = 'SB';
       }
 
+      let queryParams = `?start=${startDate}&end=${endDate}&company=${finalCompany}`;
+      let prevParams = `?start=${prev.start}&end=${prev.end}&company=${finalCompany}`;
+
+      if (isBT) {
+        queryParams += '&productType=Big Ticket';
+        prevParams += '&productType=Big Ticket';
+      }
+
+      // El recalculo no tiene fulfillmentType en su payload
+      if (fulfillment !== 'all' && !isRecalc) {
+        queryParams += `&fulfillmentType=${fulfillment}`;
+        prevParams += `&fulfillmentType=${fulfillment}`;
+      }
+
       const [resCurr, resPrev] = await Promise.all([
-        fetch(
-          `${endpoint}?start=${startDate}&end=${endDate}&company=${finalCompany}`
-        ),
-        fetch(
-          `${endpoint}?start=${prev.start}&end=${prev.end}&company=${finalCompany}`
-        ).catch(() => null),
+        fetch(`${endpoint}${queryParams}`),
+        fetch(`${endpoint}${prevParams}`).catch(() => null),
       ]);
 
       if (!resCurr.ok) {
@@ -101,27 +183,50 @@ function App() {
       } else {
         setPreviousData([]);
       }
+
+      /* Desglose por errorCode: solo la vista SBB Decomm lo muestra.
+         Guardamos el query junto al resultado: si cambian las fechas sin pulsar
+         Actualizar, la descarga por segmento sigue trayendo lo que está pintado. */
+      if (company === 'SBB_DECOMM') {
+        try {
+          const resCodes = await fetch(`/api/error-codes?${errorCodesQuery}`);
+          setErrorCodes(
+            resCodes.ok ? { ...(await resCodes.json()), query: errorCodesQuery } : null
+          );
+        } catch {
+          setErrorCodes(null); // el desglose es complementario: no rompe la vista
+        }
+      } else {
+        setErrorCodes(null);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, company]);
+  }, [startDate, endDate, company, view, fulfillment, errorCodesQuery]);
 
   const handleDownloadCSV = () => {
-    const isDecomm = company.includes('DECOMM');
+    const isDecomm = company.includes('DECOMM') || company === 'LP_BT_DECOMM';
     const isRecalc = company.includes('RECALC');
+    const isBT = company.includes('_BT_');
     
     let type = 'summary';
     if (isDecomm) type = 'decomm';
     if (isRecalc) type = 'recalc';
 
-    let finalCompany = company.replace('_DECOMM', '').replace('_RECALC', '');
+    let finalCompany = company.replace('_DECOMM', '').replace('_RECALC', '').replace('_BT_ATG', '').replace('_BT_DECOMM', '');
     if ((isDecomm || isRecalc) && finalCompany === 'SBB') {
       finalCompany = 'SB';
     }
 
-    const url = `/api/orders-csv?start=${startDate}&end=${endDate}&company=${finalCompany}&type=${type}`;
+    let url = `/api/orders-csv?start=${startDate}&end=${endDate}&company=${finalCompany}&type=${type}`;
+    if (isBT) {
+      url += '&productType=Big Ticket';
+    }
+    if (fulfillment !== 'all' && !isRecalc) {
+      url += `&fulfillmentType=${fulfillment}`;
+    }
     window.open(url, '_blank');
   };
 
@@ -133,9 +238,15 @@ function App() {
     const brandRgb = isLP ? '225, 0, 152' : '85, 33, 102';
     document.documentElement.style.setProperty('--brand-primary', brandColor);
     document.documentElement.style.setProperty('--brand-primary-rgb', brandRgb);
+    // Serie Flash en gráficas: el morado de marca es muy oscuro para marcas
+    // de datos, se usa un paso más claro del mismo tono (paleta validada).
+    document.documentElement.style.setProperty(
+      '--viz-flash',
+      isLP ? '#e10098' : '#8347ad'
+    );
     document.documentElement.setAttribute('data-company', company);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company]);
+  }, [company, view, fulfillment]);
 
   /* ── Aplicar quick range ── */
   const applyQuickRange = (range) => {
@@ -161,6 +272,21 @@ function App() {
     setActiveQuick(null);
   };
 
+  /* ── Cambiar de vista normalizando pestañas que no aplican ── */
+  const switchView = (v) => {
+    if (v === 'entregas') {
+      // La vista de entregas siempre lee FAC_EDD_ORDERS_TRN (Decomm):
+      // ATG y Recalculo no aplican, y los tabs Decomm duplican LP/SBB.
+      if (company === 'LP_BT_ATG') setCompany('LP_BT_DECOMM');
+      else if (company === 'LP_RECALC' || company === 'LP_DECOMM') setCompany('LP');
+      else if (company === 'SBB_DECOMM') setCompany('SBB');
+    }
+    setView(v);
+  };
+
+  /* Vistas globales: no dependen de compañía ni de rango de fechas */
+  const isGlobalView = view === 'buscar' || view === 'cotejar';
+
   const rangeLabel = useMemo(() => {
     const opts = { day: '2-digit', month: 'short', year: 'numeric' };
     const s = new Date(startDate).toLocaleDateString('es-MX', opts);
@@ -169,16 +295,26 @@ function App() {
   }, [startDate, endDate]);
 
   const siteTitle = useMemo(() => {
+    if (company === 'LP_BT_ATG') return 'Liverpool (BT ATG)';
+    if (company === 'LP_BT_DECOMM') return 'Liverpool (BT Decomm)';
     if (company.startsWith('LP')) return 'Liverpool';
     if (company.startsWith('SBB')) return 'Suburbia';
     return company.replace('_DECOMM', '').replace('_RECALC', '');
   }, [company]);
 
   const reportSource = useMemo(() => {
+    if (view === 'buscar' || view === 'cotejar') return 'FAC_EDD_ORDERS_TRN';
+    if (view === 'entregas') {
+      return company.includes('_BT_')
+        ? 'FAC_EDD_ORDERS_TRN (Big Ticket)'
+        : 'FAC_EDD_ORDERS_TRN';
+    }
+    if (company === 'LP_BT_ATG') return 'tables_raw_changelog (Big Ticket)';
+    if (company === 'LP_BT_DECOMM') return 'FAC_EDD_ORDERS_TRN (Big Ticket)';
     if (company.includes('RECALC')) return 'FAC_EDD_RECALCULATE_TRN';
     if (company.includes('DECOMM')) return 'FAC_EDD_ORDERS_TRN';
     return 'tables_raw_changelog';
-  }, [company]);
+  }, [company, view]);
 
   return (
     <div className="container">
@@ -191,12 +327,17 @@ function App() {
           <div>
             <h1>
               Reporte Ejecutivo · Pedidos {siteTitle}
-              {company.includes('DECOMM') ? ' (Decomm)' : ''}
-              {company.includes('RECALC') ? ' (Recalculo)' : ''}
+              {view === 'planes' && company.includes('DECOMM') && !company.includes('_BT_') ? ' (Decomm)' : ''}
+              {view === 'planes' && company.includes('RECALC') ? ' (Recalculo)' : ''}
             </h1>
             <p className="subtitle">
-              Distribución diaria de pedidos por plan: A, B y Error · Compañía{' '}
-              {company.replace('_DECOMM', '').replace('_RECALC', '')} · {reportSource}
+              {view === 'cotejar'
+                ? `Sube tu lista de órdenes y cotéjala: errorCode, porcentajes y no encontradas · ${reportSource}`
+                : view === 'buscar'
+                ? `Consulta una orden o remisión: SKUs, tiendas, fechas estimadas y tipo de entrega · ${reportSource}`
+                : view === 'entregas'
+                ? `Tipos de entrega (Flash, Siguiente Día, Estándar) y asignaciones por tienda · ${reportSource}`
+                : `Distribución diaria de pedidos por plan: A, B y Error · ${reportSource}`}
             </p>
           </div>
         </div>
@@ -204,11 +345,52 @@ function App() {
         <div className="app-header__meta">
           <span className="dot" aria-hidden="true" />
           <Clock size={12} />
-          <span>{rangeLabel}</span>
+          <span>{isGlobalView ? 'Últimos 6 meses' : rangeLabel}</span>
         </div>
       </header>
 
-      {/* ─── Tabs compañía ─── */}
+      {/* ─── Selector de vista ─── */}
+      <div className="view-switch" role="tablist" aria-label="Vista">
+        <button
+          role="tab"
+          aria-selected={view === 'planes'}
+          className={`view-switch__btn ${view === 'planes' ? 'active' : ''}`}
+          onClick={() => switchView('planes')}
+        >
+          <Layers size={14} strokeWidth={2.2} />
+          Planes A / B
+        </button>
+        <button
+          role="tab"
+          aria-selected={view === 'entregas'}
+          className={`view-switch__btn ${view === 'entregas' ? 'active' : ''}`}
+          onClick={() => switchView('entregas')}
+        >
+          <Zap size={14} strokeWidth={2.2} />
+          Tipos de Entrega
+        </button>
+        <button
+          role="tab"
+          aria-selected={view === 'buscar'}
+          className={`view-switch__btn ${view === 'buscar' ? 'active' : ''}`}
+          onClick={() => switchView('buscar')}
+        >
+          <PackageSearch size={14} strokeWidth={2.2} />
+          Buscar Orden
+        </button>
+        <button
+          role="tab"
+          aria-selected={view === 'cotejar'}
+          className={`view-switch__btn ${view === 'cotejar' ? 'active' : ''}`}
+          onClick={() => switchView('cotejar')}
+        >
+          <FileSpreadsheet size={14} strokeWidth={2.2} />
+          Cotejar Lista
+        </button>
+      </div>
+
+      {/* ─── Tabs compañía (no aplican a las vistas globales) ─── */}
+      {!isGlobalView && (
       <div className="tabs" role="tablist" aria-label="Compañía">
         {/* Principales */}
         <button
@@ -227,34 +409,58 @@ function App() {
         >
           Suburbia · SBB
         </button>
-        
-        {/* Decomm Principales */}
+
+        {/* Bigticket */}
+        {view === 'planes' && (
+          <button
+            role="tab"
+            aria-selected={company === 'LP_BT_ATG'}
+            className={`tab-btn ${company === 'LP_BT_ATG' ? 'active' : ''}`}
+            onClick={() => setCompany('LP_BT_ATG')}
+          >
+            BT ATG
+          </button>
+        )}
         <button
           role="tab"
-          aria-selected={company === 'LP_DECOMM'}
-          className={`tab-btn ${company === 'LP_DECOMM' ? 'active' : ''}`}
-          onClick={() => setCompany('LP_DECOMM')}
+          aria-selected={company === 'LP_BT_DECOMM'}
+          className={`tab-btn ${company === 'LP_BT_DECOMM' ? 'active' : ''}`}
+          onClick={() => setCompany('LP_BT_DECOMM')}
         >
-          LP Decomm
-        </button>
-        <button
-          role="tab"
-          aria-selected={company === 'SBB_DECOMM'}
-          className={`tab-btn ${company === 'SBB_DECOMM' ? 'active' : ''}`}
-          onClick={() => setCompany('SBB_DECOMM')}
-        >
-          SBB Decomm
+          BT Decomm
         </button>
 
-        {/* Recalculo */}
-        <button
-          role="tab"
-          aria-selected={company === 'LP_RECALC'}
-          className={`tab-btn ${company === 'LP_RECALC' ? 'active' : ''}`}
-          onClick={() => setCompany('LP_RECALC')}
-        >
-          Recalculo Decomm
-        </button>
+        {/* Decomm Principales (en Tipos de Entrega LP/SBB ya son Decomm) */}
+        {view === 'planes' && (
+          <>
+            <button
+              role="tab"
+              aria-selected={company === 'LP_DECOMM'}
+              className={`tab-btn ${company === 'LP_DECOMM' ? 'active' : ''}`}
+              onClick={() => setCompany('LP_DECOMM')}
+            >
+              LP Decomm
+            </button>
+            <button
+              role="tab"
+              aria-selected={company === 'SBB_DECOMM'}
+              className={`tab-btn ${company === 'SBB_DECOMM' ? 'active' : ''}`}
+              onClick={() => setCompany('SBB_DECOMM')}
+            >
+              SBB Decomm
+            </button>
+
+            {/* Recalculo */}
+            <button
+              role="tab"
+              aria-selected={company === 'LP_RECALC'}
+              className={`tab-btn ${company === 'LP_RECALC' ? 'active' : ''}`}
+              onClick={() => setCompany('LP_RECALC')}
+            >
+              Recalculo Decomm
+            </button>
+          </>
+        )}
 
         {/* Multisite Decomm */}
         {MULTISITE_DECOMM.map((site) => (
@@ -269,8 +475,10 @@ function App() {
           </button>
         ))}
       </div>
+      )}
 
-      {/* ─── Filtros ─── */}
+      {/* ─── Filtros (las vistas globales no usan rango de fechas) ─── */}
+      {!isGlobalView && (
       <div className="filters-card">
         <div className="quick-ranges" role="group" aria-label="Rangos rápidos">
           <span className="quick-ranges__label">
@@ -287,6 +495,48 @@ function App() {
             </button>
           ))}
         </div>
+
+        {/* Filtro de tipo de surtido (solo vista Planes; el recalculo no lo trae) */}
+        {view === 'planes' && (
+          <div className="quick-ranges" role="group" aria-label="Tipo de surtido">
+            <span className="quick-ranges__label">
+              <Truck size={12} /> Surtido
+            </span>
+            <button
+              type="button"
+              className={`chip ${fulfillment === 'all' ? 'active' : ''}`}
+              onClick={() => setFulfillment('all')}
+              disabled={company.includes('RECALC')}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              className={`chip ${fulfillment === 'Fulfillment_Type_Liverpool' ? 'active' : ''}`}
+              onClick={() => setFulfillment('Fulfillment_Type_Liverpool')}
+              disabled={company.includes('RECALC')}
+              title="Fulfillment_Type_Liverpool"
+            >
+              <Home size={12} />
+              Entrega a domicilio
+            </button>
+            <button
+              type="button"
+              className={`chip ${fulfillment === 'Liverpool_CNC_PICK_PACK' ? 'active' : ''}`}
+              onClick={() => setFulfillment('Liverpool_CNC_PICK_PACK')}
+              disabled={company.includes('RECALC')}
+              title="Liverpool_CNC_PICK_PACK"
+            >
+              <Store size={12} />
+              Click & Collect (tienda)
+            </button>
+            {company.includes('RECALC') && (
+              <span className="quick-ranges__note">
+                No aplica al recalculo
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="filters">
           <div className="field">
@@ -333,6 +583,7 @@ function App() {
                 </>
               )}
             </button>
+            {view === 'planes' && (
             <button
               className="btn-secondary"
               onClick={handleDownloadCSV}
@@ -356,12 +607,20 @@ function App() {
               <Download size={15} strokeWidth={2.4} />
               Exportar
             </button>
+            )}
           </div>
         </div>
       </div>
+      )}
+
+      {/* ─── Vista Buscar Orden ─── */}
+      {view === 'buscar' && <OrderSearch />}
+
+      {/* ─── Vista Cotejar Lista ─── */}
+      {view === 'cotejar' && <BulkOrderCheck />}
 
       {/* ─── Estados ─── */}
-      {error && (
+      {!isGlobalView && error && (
         <div className="alert alert--error" role="alert">
           <AlertCircle className="alert__icon" size={18} />
           <div>
@@ -370,14 +629,16 @@ function App() {
         </div>
       )}
 
-      {loading && (
+      {!isGlobalView && loading && (
         <>
           <KpiSkeleton />
           <ChartSkeleton />
         </>
       )}
 
-      {!loading && !error && data.length === 0 && (
+      {!loading && !error &&
+        ((view === 'planes' && data.length === 0) ||
+          (view === 'entregas' && (!deliveryData || deliveryData.byDay.length === 0))) && (
         <div className="alert alert--empty">
           <Inbox className="alert__icon" size={18} />
           <div>
@@ -387,7 +648,7 @@ function App() {
         </div>
       )}
 
-      {!loading && !error && data.length > 0 && (
+      {!loading && !error && view === 'planes' && data.length > 0 && (
         <>
           <KpiCards data={data} previousData={previousData} />
 
@@ -400,10 +661,103 @@ function App() {
                 </h2>
                 <p className="subtitle">
                   Composición porcentual (100% apilado) por día
+                  {company === 'SBB_DECOMM' && !showErrorSeries
+                    ? ' · serie % Error oculta'
+                    : ''}
+                </p>
+              </div>
+              {company === 'SBB_DECOMM' && (
+                <button
+                  type="button"
+                  className={`chip ${showErrorSeries ? '' : 'active'}`}
+                  onClick={() => setShowErrorSeries((v) => !v)}
+                  title="Mostrar u ocultar la serie % Error en la gráfica"
+                >
+                  {showErrorSeries ? (
+                    <>
+                      <EyeOff size={12} /> Ocultar % Error
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={12} /> Mostrar % Error
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            <BarChart
+              data={data}
+              hideError={company === 'SBB_DECOMM' && !showErrorSeries}
+            />
+          </div>
+
+          {/* Desglose de errorCode · exclusivo de SBB Decomm */}
+          {company === 'SBB_DECOMM' && errorCodes && (
+            <div className="chart-card">
+              <div className="chart-card__head">
+                <div>
+                  <h2>
+                    <PieChart size={18} strokeWidth={2.2} />
+                    Composición del % Error por errorCode
+                  </h2>
+                  <p className="subtitle">
+                    Reparto de los {errorCodes.total.toLocaleString('es-MX')} registros
+                    clasificados como Error en {rangeLabel}
+                    {fulfillment !== 'all'
+                      ? ` · ${
+                          fulfillment === 'Liverpool_CNC_PICK_PACK'
+                            ? 'CNC Pick & Pack'
+                            : 'Surtido Liverpool'
+                        }`
+                      : ''}
+                    {' · '}descarga los registros de cada segmento con
+                    <Download size={12} strokeWidth={2.4} className="subtitle__icon" />
+                  </p>
+                </div>
+              </div>
+              <ErrorCodePie
+                data={errorCodes.data}
+                total={errorCodes.total}
+                csvQuery={errorCodes.query}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {!loading && !error && view === 'entregas' && deliveryData && deliveryData.byDay.length > 0 && (
+        <>
+          <DeliveryKpis totals={deliveryData.totals} />
+
+          <div className="chart-card">
+            <div className="chart-card__head">
+              <div>
+                <h2>
+                  <Zap size={18} strokeWidth={2.2} />
+                  Distribución diaria por tipo de entrega
+                </h2>
+                <p className="subtitle">
+                  Flash Mismo Día (edd1 = edd2 = día de compra) · Siguiente
+                  Día (edd1 = edd2 = día +1) · Estándar (edd1 ≠ edd2) · 100% apilado
                 </p>
               </div>
             </div>
-            <BarChart data={data} />
+            <DeliveryChart data={deliveryData.byDay} />
+          </div>
+
+          <div className="chart-card">
+            <div className="chart-card__head">
+              <div>
+                <h2>
+                  <Store size={18} strokeWidth={2.2} />
+                  Asignaciones por tienda
+                </h2>
+                <p className="subtitle">
+                  Tienda que asignó la mercancía por línea (columna origen)
+                </p>
+              </div>
+            </div>
+            <StoreRanking stores={deliveryData.stores} />
           </div>
         </>
       )}
