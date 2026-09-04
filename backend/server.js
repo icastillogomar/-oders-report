@@ -200,6 +200,7 @@ app.get('/api/orders-decomm', async (req, res) => {
     const company = req.query.company || 'LP';
     const productType = req.query.productType; // Opcional para Decomm si no se filtra por defecto
     const fulfillmentType = req.query.fulfillmentType;
+    const marketPlace = req.query.marketPlace; // 'true' | 'false' · true = productos Marketplace
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(start) || !dateRegex.test(end)) {
@@ -208,6 +209,10 @@ app.get('/api/orders-decomm', async (req, res) => {
 
     if (fulfillmentType && !FULFILLMENT_TYPES.includes(fulfillmentType)) {
       return res.status(400).json({ error: 'fulfillmentType inválido' });
+    }
+
+    if (marketPlace && !['true', 'false'].includes(marketPlace)) {
+      return res.status(400).json({ error: 'marketPlace inválido (true|false)' });
     }
 
     let filterProductType = '';
@@ -228,6 +233,12 @@ app.get('/api/orders-decomm', async (req, res) => {
       params.fulfillmentType = fulfillmentType;
     }
 
+    let filterMarketplace = '';
+    if (marketPlace) {
+      filterMarketplace = 'AND marketPlace = @marketPlace';
+      params.marketPlace = marketPlace === 'true';
+    }
+
     const query = `
       WITH base AS (
         SELECT
@@ -239,6 +250,7 @@ app.get('/api/orders-decomm', async (req, res) => {
         WHERE company = @company
           ${filterProductType}
           ${filterFulfillment}
+          ${filterMarketplace}
           AND ingestionTimestamp >= TIMESTAMP(@start, 'America/Mexico_City')
           AND ingestionTimestamp <  TIMESTAMP(@end,   'America/Mexico_City')
       ),
@@ -940,7 +952,7 @@ app.post('/api/orders-bulk-check', async (req, res) => {
 // ─── CSV Export for Error and Plan B ──────────────────────────────────
 app.get('/api/orders-csv', async (req, res) => {
   try {
-    const { start, end, company, type, productType, fulfillmentType } = req.query;
+    const { start, end, company, type, productType, fulfillmentType, marketPlace } = req.query;
 
     if (!start || !end || !company || !type) {
       return res.status(400).json({ error: 'Faltan parámetros requeridos (start, end, company, type)' });
@@ -948,6 +960,10 @@ app.get('/api/orders-csv', async (req, res) => {
 
     if (fulfillmentType && !FULFILLMENT_TYPES.includes(fulfillmentType)) {
       return res.status(400).json({ error: 'fulfillmentType inválido' });
+    }
+
+    if (marketPlace && !['true', 'false'].includes(marketPlace)) {
+      return res.status(400).json({ error: 'marketPlace inválido (true|false)' });
     }
 
     let query = '';
@@ -993,6 +1009,7 @@ app.get('/api/orders-csv', async (req, res) => {
         filterProductType = 'AND UPPER(TRIM(productType)) IN UNNEST(@productTypes)';
         params.productTypes = productTypeVariants(productType);
       }
+      if (marketPlace) params.marketPlace = marketPlace === 'true';
       query = `
         WITH base AS (
           SELECT *,
@@ -1005,6 +1022,7 @@ app.get('/api/orders-csv', async (req, res) => {
           WHERE company = @company
             ${filterProductType}
             ${fulfillmentType ? 'AND fulfillmentType = @fulfillmentType' : ''}
+            ${marketPlace ? 'AND marketPlace = @marketPlace' : ''}
             AND ingestionTimestamp >= TIMESTAMP(@start, 'America/Mexico_City')
             AND ingestionTimestamp <  TIMESTAMP(@end,   'America/Mexico_City')
         )

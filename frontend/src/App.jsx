@@ -19,6 +19,7 @@ import {
   Truck,
   Eye,
   EyeOff,
+  ShoppingBag,
 } from 'lucide-react';
 import KpiCards from './components/KpiCards.jsx';
 import BarChart from './components/BarChart.jsx';
@@ -89,6 +90,9 @@ function App() {
   const [view, setView] = useState('planes'); // 'planes' | 'entregas' | 'buscar' | 'cotejar'
   // Filtro de tipo de surtido: 'all' | 'Fulfillment_Type_Liverpool' | 'Liverpool_CNC_PICK_PACK'
   const [fulfillment, setFulfillment] = useState('all');
+  // Filtro por tipo de producto (columna marketPlace, solo LP Decomm):
+  // 'all' | 'true' (Marketplace) | 'false' (catálogo propio)
+  const [marketplace, setMarketplace] = useState('all');
   // Mostrar/ocultar la serie % Error en la gráfica (solo tab SBB Decomm)
   const [showErrorSeries, setShowErrorSeries] = useState(true);
   const [activeQuick, setActiveQuick] = useState(null);
@@ -164,6 +168,12 @@ function App() {
         prevParams += `&fulfillmentType=${fulfillment}`;
       }
 
+      // Tipo de producto (marketPlace) · solo aplica al tab LP Decomm
+      if (marketplace !== 'all' && company === 'LP_DECOMM') {
+        queryParams += `&marketPlace=${marketplace}`;
+        prevParams += `&marketPlace=${marketplace}`;
+      }
+
       const [resCurr, resPrev] = await Promise.all([
         fetch(`${endpoint}${queryParams}`),
         fetch(`${endpoint}${prevParams}`).catch(() => null),
@@ -204,7 +214,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, company, view, fulfillment, errorCodesQuery]);
+  }, [startDate, endDate, company, view, fulfillment, marketplace, errorCodesQuery]);
 
   const handleDownloadCSV = () => {
     const isDecomm = company.includes('DECOMM') || company === 'LP_BT_DECOMM';
@@ -227,6 +237,9 @@ function App() {
     if (fulfillment !== 'all' && !isRecalc) {
       url += `&fulfillmentType=${fulfillment}`;
     }
+    if (marketplace !== 'all' && company === 'LP_DECOMM') {
+      url += `&marketPlace=${marketplace}`;
+    }
     window.open(url, '_blank');
   };
 
@@ -246,7 +259,7 @@ function App() {
     );
     document.documentElement.setAttribute('data-company', company);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company, view, fulfillment]);
+  }, [company, view, fulfillment, marketplace]);
 
   /* ── Aplicar quick range ── */
   const applyQuickRange = (range) => {
@@ -538,6 +551,40 @@ function App() {
           </div>
         )}
 
+        {/* Filtro por tipo de producto (marketPlace) · exclusivo del tab LP Decomm */}
+        {view === 'planes' && company === 'LP_DECOMM' && (
+          <div className="quick-ranges" role="group" aria-label="Tipo de producto">
+            <span className="quick-ranges__label">
+              <ShoppingBag size={12} /> Producto
+            </span>
+            <button
+              type="button"
+              className={`chip ${marketplace === 'all' ? 'active' : ''}`}
+              onClick={() => setMarketplace('all')}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              className={`chip ${marketplace === 'true' ? 'active' : ''}`}
+              onClick={() => setMarketplace('true')}
+              title="marketPlace = true"
+            >
+              <ShoppingBag size={12} />
+              Marketplace
+            </button>
+            <button
+              type="button"
+              className={`chip ${marketplace === 'false' ? 'active' : ''}`}
+              onClick={() => setMarketplace('false')}
+              title="marketPlace = false"
+            >
+              <Store size={12} />
+              Catálogo propio
+            </button>
+          </div>
+        )}
+
         <div className="filters">
           <div className="field">
             <label htmlFor="start-date">Desde</label>
@@ -661,6 +708,9 @@ function App() {
                 </h2>
                 <p className="subtitle">
                   Composición porcentual (100% apilado) por día
+                  {company === 'LP_DECOMM' && marketplace !== 'all'
+                    ? ` · solo ${marketplace === 'true' ? 'Marketplace' : 'catálogo propio'}`
+                    : ''}
                   {company === 'SBB_DECOMM' && !showErrorSeries
                     ? ' · serie % Error oculta'
                     : ''}
