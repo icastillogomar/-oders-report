@@ -2,38 +2,50 @@
    Design Tokens
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  /* Brand (dinámico por compañía) */
-  --brand-primary: #e10098;
-  --brand-primary-rgb: 225, 0, 152;
-  --brand-soft: rgba(225, 0, 152, 0.08);
-  --brand-strong: rgba(225, 0, 152, 0.18);
+  /* Brand · botones (paleta "El Puerto de Liverpool" del sistema de diseño
+     GLUE UI, compartida por LP y Suburbia — no define una paleta propia
+     para SBB): https://symmetrical-bassoon-g3k1nnl.pages.github.io/?path=/docs/docs-colors--documentation
+     300 = tono de botón pedido, 700 = hover, 50 = light, 900 = dark. */
+  --brand-primary: #ac75a4;
+  --brand-primary-rgb: 172, 117, 164;
+  --brand-primary-hover: #833177;
+  --brand-primary-light: #f3eaf1;
+  --brand-primary-dark: #371532;
+  --brand-soft: rgba(var(--brand-primary-rgb), 0.08);
+  --brand-strong: rgba(var(--brand-primary-rgb), 0.18);
 
-  /* Neutrales (estilo Stripe / Linear) */
-  --bg: #f6f7f9;
+  /* Neutrales (escala "Surface colors" del sistema de diseño) */
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-2: #fafbfc;
-  --border: #e6e8eb;
-  --border-strong: #d4d7dc;
+  --surface-2: #f5f5f5;
+  --border: #ebebeb;
+  --border-strong: #d8d8d8;
 
-  --text-1: #0a1628;
-  --text-2: #424a57;
-  --text-3: #6b7280;
-  --text-muted: #9ca3af;
+  --text-1: #151515;
+  --text-2: #333333;
+  --text-3: #767676;
+  --text-muted: #a1a1a1;
 
-  /* Semánticos */
-  --success: #12b76a;
-  --success-soft: #d1fae5;
-  --warning: #f59e0b;
-  --warning-soft: #fef3c7;
-  --danger: #ef4444;
-  --danger-soft: #fee2e2;
-  --info: #3b82f6;
-  --info-soft: #dbeafe;
+  /* Semánticos (KEY = 500 de cada paleta del sistema de diseño,
+     --success ajustado a 600 por pedido explícito de tono verde) */
+  --success: #09ac38;
+  --success-rgb: 9, 172, 56;
+  --success-soft: #e7f8ec;
+  --warning: #ec9e00;
+  --warning-rgb: 236, 158, 0;
+  --warning-soft: #fdf5e6;
+  --danger: #ff0000;
+  --danger-rgb: 255, 0, 0;
+  --danger-soft: #ffe6e6;
+  --info: #37abc6;
+  --info-rgb: 55, 171, 198;
+  --info-soft: #ebf7f9;
 
-  /* Categorías del reporte */
-  --plan-a: var(--brand-primary);
-  --plan-b: #f59e0b;
-  --error: #ef4444;
+  /* Categorías del reporte (colores propios, independientes de --brand-primary;
+     --plan-a referencia --success para que TODO verde del sitio sea uno solo) */
+  --plan-a: var(--success);
+  --plan-b: #f0b133;
+  --error: #ff3333;
 
   /* Sombras (suaves, tipo dashboard) */
   --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
@@ -42,16 +54,17 @@
   --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
   --shadow-focus: 0 0 0 4px var(--brand-soft);
 
-  /* Radios */
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
-  --r-full: 999px;
+  /* Radios (escala Tailwind, igual que Conecta) */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+  --r-full: 9999px;
 
-  /* Tipografía */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  /* Tipografía (Roboto · documentación de diseño "El Puerto de Liverpool":
+     https://symmetrical-bassoon-g3k1nnl.pages.github.io/?path=/docs/docs-typography--documentation )
+     Pesos del sistema: Light 300 · Regular 400 · Semibold 600 · Bold 700. */
+  --font-sans: 'Roboto', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* Transiciones */
@@ -60,27 +73,18 @@
   --t-slow: 280ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Tema Suburbia (morado) */
-[data-company='SBB'] {
-  --brand-primary: #552166;
-  --brand-primary-rgb: 85, 33, 102;
-  --brand-soft: rgba(85, 33, 102, 0.08);
-  --brand-strong: rgba(85, 33, 102, 0.18);
-  --plan-a: var(--brand-primary);
-}
-
 /* ═══════════════════════════════════════════════════════════════
-   Series de gráfica: tipos de entrega (paleta validada CVD ≥ 22,
-   contraste ≥ 3:1 sobre superficie clara). --viz-flash cambia por
-   marca vía JS (#e10098 LP · #8347ad SBB, paso claro del morado).
+   Series de gráfica: tipos de entrega (colores del sistema de diseño).
+   --viz-flash usa el tono 300 de la paleta de marca (un paso más claro
+   que --brand-primary, validado para legibilidad de marcas de datos).
    El gris de Estándar es de-énfasis deliberado: la identidad la
    cubren leyenda, tooltips y los KPIs con valores exactos.
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  --viz-flash: #e10098;
-  --viz-nextday: #3b82f6;
-  --viz-standard: #64748b;
-  --viz-noedd: #ef4444;
+  --viz-flash: #ac75a4;
+  --viz-nextday: var(--info);
+  --viz-standard: var(--text-3);
+  --viz-noedd: var(--danger);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -119,6 +123,29 @@ input {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   Ripple (efecto Material al hacer click, igual al de Conecta).
+   El elemento .ripple se inyecta por JS (ver addRipple en App.jsx)
+   en el punto exacto del click; el botón que lo recibe necesita
+   position: relative + overflow: hidden.
+   ═══════════════════════════════════════════════════════════════ */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  background: currentColor;
+  opacity: 0.25;
+  pointer-events: none;
+  animation: ripple-anim 550ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes ripple-anim {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
    Layout
    ═══════════════════════════════════════════════════════════════ */
 .container {
@@ -129,45 +156,51 @@ input {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Header
+   Header (idéntico al de Conecta: barra completa color de marca,
+   logo Liverpool en blanco, divisor y título · sin buscador)
    ═══════════════════════════════════════════════════════════════ */
 .app-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 28px;
+  /* Fijo a propósito (igual a Conecta), independiente de --brand-primary
+     aunque hoy coincidan en el mismo valor: no debe cambiar si el color
+     de marca del dashboard cambia en el futuro. */
+  background: #833177;
+  width: 100%;
 }
 
-.app-header__title {
+.app-header__inner {
+  max-width: 1240px;
+  height: 80px;
+  margin: 0 auto;
+  padding: 16px 40px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
 .app-header__logo {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--r-md);
-  background: var(--brand-primary);
-  display: grid;
-  place-items: center;
-  color: #fff;
-  box-shadow: 0 6px 14px -4px rgba(var(--brand-primary-rgb), 0.45);
-  transition: background var(--t-slow), box-shadow var(--t-slow);
+  width: 155px;
+  height: auto;
+  /* El SVG original es rosa (#E10098); se invierte a blanco, igual que Conecta */
+  filter: brightness(0) invert(1);
+}
+
+.app-header__divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .app-header h1 {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-1);
-}
-
-.app-header .subtitle {
-  margin-top: 2px;
-  font-size: 13px;
-  color: var(--text-3);
+  color: #fff;
 }
 
 .app-header__meta {
@@ -181,6 +214,7 @@ input {
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-header__meta .dot {
@@ -196,14 +230,16 @@ input {
    Tabs (segmented control)
    ═══════════════════════════════════════════════════════════════ */
 .tabs {
-  display: inline-flex;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 3px;
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 4px;
   margin-bottom: 20px;
-  box-shadow: var(--shadow-xs);
 }
 
 .tab-btn {
@@ -214,27 +250,33 @@ input {
   background: transparent;
   border: none;
   border-radius: var(--r-sm);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-primary);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
   transition: all var(--t-base);
 }
 
-.tab-btn:hover {
-  color: var(--text-1);
-  background: var(--surface-2);
+.tab-btn:hover,
+.tab-btn:focus {
+  color: var(--brand-primary-hover);
+  background: var(--brand-soft);
 }
 
 .tab-btn.active {
-  background: var(--brand-primary);
+  /* Tono oscuro fijo: marca la selección, no depende de :hover/:focus
+     (que se pierden al hacer click fuera del botón). */
+  background: var(--brand-primary-hover);
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08),
-    0 4px 12px -2px rgba(var(--brand-primary-rgb), 0.3);
+  box-shadow: none;
 }
 
-.tab-btn.active:hover {
-  background: var(--brand-primary);
+.tab-btn.active:hover,
+.tab-btn.active:focus {
+  background: var(--brand-primary-dark);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -263,7 +305,7 @@ input {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -280,7 +322,7 @@ input {
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-2);
   transition: all var(--t-fast);
 }
@@ -306,7 +348,7 @@ input {
 }
 
 .quick-ranges__note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   font-style: italic;
   align-self: center;
@@ -329,28 +371,29 @@ input {
 
 .filters .field label {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-2);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.input-wrap {
+/* ═══════════════════════════════════════════════════════════════
+   CalendarWidget (organism "CalendarWidget" · variante "default" del
+   sistema de diseño GLUE UI): único componente de calendario del
+   proyecto — components/CalendarWidget.jsx. Cualquier selector de
+   fecha nuevo debe reutilizarlo (en vez de un <input type="date">
+   nativo) para heredar automáticamente este estilo.
+   https://symmetrical-bassoon-g3k1nnl.pages.github.io/?path=/docs/organisms-calendarwidget--documentation#default-11
+   ═══════════════════════════════════════════════════════════════ */
+.cal-field {
   position: relative;
+}
+
+.cal-field__trigger {
   display: flex;
   align-items: center;
-}
-
-.input-wrap__icon {
-  position: absolute;
-  left: 12px;
-  color: var(--text-muted);
-  pointer-events: none;
-  transition: color var(--t-fast);
-}
-
-.input-wrap input {
+  gap: 8px;
   width: 100%;
   height: 40px;
   padding: 0 14px 0 38px;
@@ -359,22 +402,134 @@ input {
   border-radius: var(--r-md);
   font-size: 14px;
   color: var(--text-1);
+  text-align: left;
   transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 
-.input-wrap input:hover {
+.cal-field__trigger:hover {
   border-color: var(--border-strong);
 }
 
-.input-wrap input:focus {
+.cal-field__trigger:focus {
   outline: none;
   border-color: var(--brand-primary);
   box-shadow: var(--shadow-focus);
 }
 
-.input-wrap input:focus + .input-wrap__icon,
-.input-wrap:focus-within .input-wrap__icon {
-  color: var(--brand-primary);
+.cal-field__icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.cal-widget {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+  font-family: var(--font-sans);
+  animation: slide-down var(--t-base) ease-out;
+}
+
+.cal-widget__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.cal-widget__month {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-transform: capitalize;
+}
+
+.cal-widget__nav {
+  display: flex;
+  gap: 4px;
+}
+
+.cal-widget__nav button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--text-2);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  transition: background var(--t-fast);
+}
+
+.cal-widget__nav button:hover {
+  background: var(--surface-2);
+}
+
+.cal-widget__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+
+.cal-widget__weekdays span {
+  display: grid;
+  place-items: center;
+  height: 26px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.cal-widget__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal-widget__day {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  margin: 0 auto;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-2);
+  background: transparent;
+  transition: background var(--t-fast);
+}
+
+.cal-widget__day:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.cal-widget__day--muted {
+  color: var(--border-strong);
+  cursor: not-allowed;
+}
+
+.cal-widget__day--today {
+  border: 1px solid var(--text-2);
+  font-weight: 600;
+}
+
+.cal-widget__day--selected,
+.cal-widget__day--selected:hover {
+  background: var(--brand-primary-hover);
+  color: #fff;
+  font-weight: 700;
 }
 
 .btn-primary {
@@ -384,19 +539,24 @@ input {
   gap: 8px;
   height: 40px;
   padding: 0 20px;
-  background: var(--brand-primary);
+  /* Tono oscuro fijo, como si estuviera siempre seleccionado */
+  background: var(--brand-primary-hover);
   color: #fff;
   border: none;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
   transition: all var(--t-fast);
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08),
     0 2px 6px -1px rgba(var(--brand-primary-rgb), 0.3);
 }
 
-.btn-primary:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled),
+.btn-primary:focus:not(:disabled) {
+  background: var(--brand-primary-dark);
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(16, 24, 40, 0.08),
     0 6px 14px -2px rgba(var(--brand-primary-rgb), 0.4);
@@ -407,6 +567,36 @@ input {
 }
 
 .btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  height: 38px;
+  background: var(--surface);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--t-fast);
+}
+
+.btn-secondary:hover:not(:disabled),
+.btn-secondary:focus:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.btn-secondary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -429,7 +619,7 @@ input {
   gap: 12px;
   padding: 14px 16px;
   border-radius: var(--r-md);
-  font-size: 13px;
+  font-size: 14px;
   margin-bottom: 20px;
   border: 1px solid transparent;
   animation: slide-down var(--t-base) ease-out;
@@ -442,14 +632,14 @@ input {
 
 .alert--error {
   background: var(--danger-soft);
-  border-color: rgba(239, 68, 68, 0.25);
-  color: #991b1b;
+  border-color: rgba(var(--danger-rgb), 0.25);
+  color: #b50000;
 }
 
 .alert--info {
   background: var(--info-soft);
-  border-color: rgba(59, 130, 246, 0.25);
-  color: #1e40af;
+  border-color: rgba(var(--info-rgb), 0.25);
+  color: #27798d;
 }
 
 .alert--empty {
@@ -533,7 +723,7 @@ input {
 
 .kpi-card__label {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-3);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -574,7 +764,7 @@ input {
 }
 
 .kpi-card__share .big {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--card-color);
 }
@@ -585,19 +775,19 @@ input {
   gap: 3px;
   padding: 3px 8px;
   border-radius: var(--r-full);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .trend--up {
   background: var(--success-soft);
-  color: #047857;
+  color: #07862c;
 }
 
 .trend--down {
   background: var(--danger-soft);
-  color: #b91c1c;
+  color: #b50000;
 }
 
 .trend--flat {
@@ -659,7 +849,7 @@ input {
 }
 
 .chart-card .subtitle {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-3);
   margin-top: 2px;
 }
@@ -771,7 +961,7 @@ footer code {
   border: 1px solid var(--border);
   padding: 2px 6px;
   border-radius: var(--r-sm);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-2);
 }
 
@@ -780,13 +970,12 @@ footer code {
    ═══════════════════════════════════════════════════════════════ */
 .view-switch {
   display: inline-flex;
-  gap: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  gap: 3px;
+  background: var(--brand-primary-light);
+  border: none;
   border-radius: var(--r-md);
   padding: 4px;
   margin-bottom: 14px;
-  box-shadow: var(--shadow-xs);
 }
 
 .view-switch__btn {
@@ -795,20 +984,31 @@ footer code {
   gap: 7px;
   padding: 8px 16px;
   border-radius: var(--r-sm);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text-2);
+  color: var(--brand-primary);
+  position: relative;
+  overflow: hidden;
   transition: all var(--t-base);
 }
 
-.view-switch__btn:hover {
-  color: var(--text-1);
+.view-switch__btn:hover,
+.view-switch__btn:focus {
+  color: var(--brand-primary-hover);
+  background: var(--brand-soft);
 }
 
 .view-switch__btn.active {
-  background: var(--brand-primary);
+  /* Tono oscuro fijo: marca la selección, no depende de :hover/:focus
+     (que se pierden al hacer click fuera del botón). */
+  background: var(--brand-primary-hover);
   color: #fff;
-  box-shadow: 0 2px 6px -1px rgba(var(--brand-primary-rgb), 0.4);
+  box-shadow: none;
+}
+
+.view-switch__btn.active:hover,
+.view-switch__btn.active:focus {
+  background: var(--brand-primary-dark);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -821,10 +1021,10 @@ footer code {
   padding: 10px 14px;
   margin-bottom: 16px;
   background: var(--info-soft);
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(var(--info-rgb), 0.25);
   border-radius: var(--r-md);
-  font-size: 13px;
-  color: #1e40af;
+  font-size: 14px;
+  color: #27798d;
 }
 
 .store-rank__mktp svg {
@@ -863,8 +1063,8 @@ footer code {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
 }
@@ -891,7 +1091,7 @@ footer code {
 }
 
 .store-rank__value {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-1);
   text-align: right;
@@ -974,7 +1174,7 @@ footer code {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   font-family: var(--font-mono);
-  font-size: 17px;
+  font-size: 18px;
   letter-spacing: 0.06em;
   color: var(--text-1);
   transition: border-color var(--t-fast), box-shadow var(--t-fast),
@@ -996,7 +1196,7 @@ footer code {
 .search-hero__bar .btn-primary {
   height: 52px;
   padding: 0 26px;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .search-hero__clear {
@@ -1036,7 +1236,7 @@ footer code {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1064,14 +1264,14 @@ footer code {
 }
 
 .search-empty h3 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-2);
   margin-top: 8px;
 }
 
 .search-empty p {
-  font-size: 13px;
+  font-size: 14px;
   max-width: 460px;
   line-height: 1.5;
 }
@@ -1101,7 +1301,7 @@ footer code {
 }
 
 .order-card__id-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1113,7 +1313,7 @@ footer code {
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: var(--text-1);
@@ -1143,7 +1343,7 @@ footer code {
 }
 
 .order-card__facts dt {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1155,7 +1355,7 @@ footer code {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-1);
 }
 
@@ -1204,7 +1404,7 @@ footer code {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 
@@ -1276,8 +1476,8 @@ footer code {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-2);
 }
 
@@ -1340,7 +1540,7 @@ footer code {
   gap: 5px;
   padding: 4px 10px;
   border-radius: var(--r-full);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -1355,32 +1555,32 @@ footer code {
 
 .badge--nextday {
   background: var(--info-soft);
-  border-color: rgba(59, 130, 246, 0.3);
-  color: #1d4ed8;
+  border-color: rgba(var(--info-rgb), 0.3);
+  color: #27798d;
 }
 
 .badge--standard {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  color: #475569;
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-2);
 }
 
 .badge--noedd {
   background: var(--danger-soft);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #b91c1c;
+  border-color: rgba(var(--danger-rgb), 0.3);
+  color: #b50000;
 }
 
 .badge--plan {
   background: var(--success-soft);
-  border-color: rgba(18, 183, 106, 0.3);
-  color: #047857;
+  border-color: rgba(var(--success-rgb), 0.3);
+  color: #07862c;
 }
 
 .badge--planb {
   background: var(--warning-soft);
-  border-color: rgba(245, 158, 11, 0.35);
-  color: #b45309;
+  border-color: rgba(var(--warning-rgb), 0.35);
+  color: #a87000;
 }
 
 .badge--split {
@@ -1390,15 +1590,15 @@ footer code {
 }
 
 .badge--lp {
-  background: rgba(225, 0, 152, 0.08);
-  border-color: rgba(225, 0, 152, 0.3);
-  color: #e10098;
+  background: var(--brand-soft);
+  border-color: rgba(var(--brand-primary-rgb), 0.3);
+  color: var(--brand-primary);
 }
 
 .badge--sb {
-  background: rgba(85, 33, 102, 0.08);
-  border-color: rgba(85, 33, 102, 0.3);
-  color: #552166;
+  background: rgba(87, 35, 100, 0.08);
+  border-color: rgba(87, 35, 100, 0.3);
+  color: #572364;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1450,7 +1650,13 @@ footer code {
 
 @media (max-width: 720px) {
   .container { padding: 20px 16px 32px; }
-  .app-header { flex-direction: column; align-items: stretch; }
+  .app-header__inner {
+    height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 20px;
+    gap: 12px;
+  }
   .app-header__meta { align-self: flex-start; }
   .filters .field { flex: 1 1 100%; }
   .btn-primary { width: 100%; }
@@ -1481,6 +1687,9 @@ footer code {
   .view-switch__btn {
     flex: 1;
     justify-content: center;
+  }
+  .tabs {
+    justify-content: flex-start;
   }
   .store-rank__row {
     grid-template-columns: 30px 100px 1fr 64px;
@@ -1576,8 +1785,8 @@ footer code {
 
 .dropzone h3 {
   margin: 4px 0 0;
-  font-size: 17px;
-  font-weight: 650;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--text-1);
   letter-spacing: -0.01em;
 }
@@ -1585,7 +1794,7 @@ footer code {
 .dropzone p {
   margin: 0;
   max-width: 460px;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
   color: var(--text-3);
 }
@@ -1618,7 +1827,7 @@ footer code {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
   box-shadow: var(--shadow-xs);
 }
@@ -1632,7 +1841,7 @@ footer code {
   background: var(--brand-soft);
   color: var(--brand-primary);
   border-radius: var(--r-full);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1665,15 +1874,15 @@ footer code {
 
 .bulk-panel__title h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-1);
   word-break: break-all;
 }
 
 .bulk-panel__title p {
   margin: 2px 0 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-3);
 }
 
@@ -1709,7 +1918,7 @@ footer code {
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--text-1);
   cursor: pointer;
 }
@@ -1724,7 +1933,7 @@ footer code {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 
@@ -1743,7 +1952,7 @@ footer code {
 }
 
 .bulk-preview__label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1768,19 +1977,19 @@ footer code {
 }
 
 .bulk-preview__more {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-3);
 }
 
 .bulk-hint {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .bulk-hint code {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* ── Progreso ── */
@@ -1799,7 +2008,7 @@ footer code {
 
 .bulk-panel--running p {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .bulk-spin {
@@ -1835,14 +2044,14 @@ footer code {
 .bulk-results__head h2 {
   margin: 0;
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -0.015em;
   color: var(--text-1);
 }
 
 .bulk-results__head p {
   margin: 3px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-3);
 }
 
@@ -1880,7 +2089,7 @@ footer code {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.045em;
@@ -1894,7 +2103,7 @@ footer code {
 
 .bulk-stat__value {
   font-size: 28px;
-  font-weight: 680;
+  font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--text-1);
@@ -1902,7 +2111,7 @@ footer code {
 }
 
 .bulk-stat__sub {
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-3);
   line-height: 1.45;
 }
@@ -1937,7 +2146,7 @@ footer code {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-2);
 }
 
@@ -1957,13 +2166,13 @@ footer code {
 
 .bulk-codes h3 {
   margin: 0 0 14px;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-1);
 }
 
 .bulk-codes h3 span {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -1971,14 +2180,14 @@ footer code {
 .bulk-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .bulk-codes th,
 .bulk-table th {
   padding: 8px 10px;
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.045em;
@@ -2071,7 +2280,7 @@ footer code {
   background: none;
   outline: none;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--text-1);
   width: 190px;
 }
@@ -2100,7 +2309,7 @@ footer code {
 
 /* Cotejar: ajustes para el modo remisión + SKU */
 .bulk-mapping label .muted {
-  font-weight: 500;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
   color: var(--text-muted);
@@ -2148,8 +2357,8 @@ footer code {
 }
 
 .errorpie__center strong {
-  font-size: 26px;
-  font-weight: 680;
+  font-size: 28px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--text-1);
@@ -2157,8 +2366,8 @@ footer code {
 }
 
 .errorpie__center span {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -2180,7 +2389,7 @@ footer code {
   gap: 10px;
   padding: 7px 10px;
   border-radius: var(--r-sm);
-  font-size: 13px;
+  font-size: 14px;
   transition: background var(--t-fast);
 }
 
@@ -2202,7 +2411,7 @@ footer code {
 }
 
 .errorpie__pct {
-  font-weight: 650;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-1);
   min-width: 52px;
@@ -2258,7 +2467,7 @@ footer code {
   border: 0;
   background: none;
   font: inherit;
-  font-weight: 650;
+  font-weight: 700;
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -2275,9 +2484,9 @@ footer code {
   padding: 10px 12px;
   background: var(--danger-soft);
   border-radius: var(--r-md);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.5;
-  color: #991b1b;
+  color: #b50000;
 }
 
 .errorpie__dlerror svg { flex-shrink: 0; margin-top: 1px; }
@@ -2316,14 +2525,14 @@ footer code {
   padding: 10px 12px;
   background: var(--warning-soft);
   border-radius: var(--r-md);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.5;
-  color: #92400e;
+  color: #a87000;
 }
 
 .errorpie__warn code {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 12px;
   background: rgba(146, 64, 14, 0.1);
   padding: 1px 4px;
   border-radius: 3px;
@@ -2333,12 +2542,12 @@ footer code {
 
 .errorpie__insight {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-3);
   line-height: 1.55;
 }
 
-.errorpie__insight strong { color: var(--text-1); font-weight: 650; }
+.errorpie__insight strong { color: var(--text-1); font-weight: 700; }
 
 .errorpie__empty {
   display: flex;
@@ -2350,7 +2559,7 @@ footer code {
   text-align: center;
 }
 
-.errorpie__empty p { margin: 0; font-size: 13.5px; }
+.errorpie__empty p { margin: 0; font-size: 14px; }
 
 @media (max-width: 860px) {
   .errorpie {
@@ -2373,7 +2582,7 @@ footer code {
 
 .bulk-codes__label {
   display: block;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-1);
 }
@@ -2381,14 +2590,14 @@ footer code {
 .bulk-codes__desc {
   display: block;
   max-width: 460px;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--text-muted);
 }
 
 .chip--static {
   padding: 3px 9px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: default;
 }
 
