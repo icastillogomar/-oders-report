@@ -4,6 +4,7 @@ import (
 	"edd-panel-backend/internal/services"
 	"edd-panel-backend/pkg/utils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -24,6 +25,10 @@ func (h *OrdersHandler) HandlerOrdersSummary(w http.ResponseWriter, r *http.Requ
 
 func (h *OrdersHandler) HandlerRecalculateOrders(w http.ResponseWriter, r *http.Request) {
 	h.handleRecalculateOrders(w, r)
+}
+
+func (h *OrdersHandler) HandlerDeliveryTypes(w http.ResponseWriter, r *http.Request) {
+	h.handleGetDeliveryTypes(w, r)
 }
 
 func (h *OrdersHandler) handleGetOrdersSummary(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +100,50 @@ func (h *OrdersHandler) handleRecalculateOrders(w http.ResponseWriter, r *http.R
 			"end":   endDate,
 		},
 		"company": company,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *OrdersHandler) handleGetDeliveryTypes(w http.ResponseWriter, r *http.Request) {
+	company := r.URL.Query().Get("company")
+	productType := r.URL.Query().Get("productType")
+	startDate := r.URL.Query().Get("start")
+	endDate := r.URL.Query().Get("end")
+
+	result, err := h.service.GetDeliveryTypes(company, productType, startDate, endDate)
+	if err != nil {
+		utils.Logging("ERROR", "Error getting delivery types", "", map[string]any{
+			"query": r.URL.Query(),
+			"error": err.Error(),
+		})
+		w.Header().Set("Content-Type", "application/json")
+		if errors.Is(err, services.ErrInvalidDateFormat) {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": err.Error(),
+			})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"byDay":  result.ByDay,
+		"stores": result.Stores,
+		"totals": result.Totals,
+		"range": map[string]string{
+			"start": startDate,
+			"end":   endDate,
+		},
+		"company":     company,
+		"productType": productType,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

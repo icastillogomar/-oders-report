@@ -2,11 +2,15 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
 
 	"edd-panel-backend/internal/model"
 	"edd-panel-backend/internal/repository"
 )
+
+var ErrInvalidDateFormat = errors.New("formato de fecha inválido")
 
 type OrdersService struct {
 	order repository.OrdersRepository
@@ -49,5 +53,33 @@ func (o *OrdersService) RecalculateOrders(
 		startDate,
 		endDate,
 		company,
+	)
+}
+
+func (o *OrdersService) GetDeliveryTypes(
+	company, productType, startDate, endDate string,
+) (*model.DeliveryTypesResult, error) {
+	var dateOnlyRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+	if startDate == "" {
+		startDate = "2026-07-31"
+	}
+	if endDate == "" {
+		endDate = "2026-08-01"
+	}
+	if company == "" {
+		company = "LP"
+	}
+
+	if !dateOnlyRegex.MatchString(startDate) || !dateOnlyRegex.MatchString(endDate) {
+		return nil, ErrInvalidDateFormat
+	}
+
+	return o.order.GetDeliveryTypes(
+		context.Background(),
+		company,
+		productType,
+		startDate,
+		endDate,
 	)
 }
