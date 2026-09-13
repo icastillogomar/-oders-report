@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type OrdersHandler struct {
@@ -29,6 +30,10 @@ func (h *OrdersHandler) HandlerRecalculateOrders(w http.ResponseWriter, r *http.
 
 func (h *OrdersHandler) HandlerDeliveryTypes(w http.ResponseWriter, r *http.Request) {
 	h.handleGetDeliveryTypes(w, r)
+}
+
+func (h *OrdersHandler) HandlerOrderSearch(w http.ResponseWriter, r *http.Request) {
+	h.handleOrderSearch(w, r)
 }
 
 func (h *OrdersHandler) handleGetOrdersSummary(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +149,41 @@ func (h *OrdersHandler) handleGetDeliveryTypes(w http.ResponseWriter, r *http.Re
 		},
 		"company":     company,
 		"productType": productType,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *OrdersHandler) handleOrderSearch(w http.ResponseWriter, r *http.Request) {
+	orderNumber := strings.TrimSpace(r.URL.Query().Get("orderNumber"))
+
+	lines, err := h.service.SearchOrder(orderNumber)
+	if err != nil {
+		utils.Logging("ERROR", "Error searching order", "", map[string]any{
+			"query": r.URL.Query(),
+			"error": err.Error(),
+		})
+		w.Header().Set("Content-Type", "application/json")
+		if errors.Is(err, services.ErrInvalidOrderNumber) {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": err.Error(),
+			})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"orderNumber": orderNumber,
+		"found":       len(lines) > 0,
+		"lines":       lines,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

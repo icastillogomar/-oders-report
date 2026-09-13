@@ -12,6 +12,10 @@ import (
 
 var ErrInvalidDateFormat = errors.New("formato de fecha inválido")
 
+// ErrInvalidOrderNumber señala un orderNumber que no cumple el formato
+// esperado, para que el transport la responda como 400 en vez de 500.
+var ErrInvalidOrderNumber = errors.New("el número de orden debe tener entre 6 y 20 dígitos")
+
 type OrdersService struct {
 	order repository.OrdersRepository
 }
@@ -82,4 +86,14 @@ func (o *OrdersService) GetDeliveryTypes(
 		startDate,
 		endDate,
 	)
+}
+
+func (o *OrdersService) SearchOrder(orderNumber string) ([]*model.OrderSearchLine, error) {
+	var orderNumberRegex = regexp.MustCompile(`^\d{6,20}$`)
+
+	if !orderNumberRegex.MatchString(orderNumber) {
+		return nil, ErrInvalidOrderNumber
+	}
+
+	return o.order.SearchOrder(context.Background(), orderNumber)
 }

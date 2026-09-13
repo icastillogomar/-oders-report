@@ -19,6 +19,7 @@ type OrdersRepository interface {
 	GetOrdersSummary(ctx context.Context, productType, fulfillmentType, isMarketplace string, company, startDate, endDate string) ([]*model.OrdersSummary, error)
 	RecalculateOrders(ctx context.Context, startDate, endDate, company string) ([]*model.OrdersSummary, error)
 	GetDeliveryTypes(ctx context.Context, company, productType, startDate, endDate string) (*model.DeliveryTypesResult, error)
+	SearchOrder(ctx context.Context, orderNumber string) ([]*model.OrderSearchLine, error)
 }
 
 // productTypeVariants espeja al helper homónimo de server.js: 'BIG TICKET'/'BT'
@@ -419,4 +420,157 @@ func runDeliveryTypesStoresQuery(ctx context.Context, client *bigquery.Client, q
 		rows = append(rows, &row)
 	}
 	return rows, nil
+}
+
+// orderSearchRow espeja el resultado crudo de la consulta de order-search.
+// La mayoría de las columnas son NULLABLE en BigQuery, así que se leen como
+// tipos Null* y luego se convierten a punteros para el modelo público
+// (nil -> `null` en JSON, igual que el driver de Node).
+type orderSearchRow struct {
+	OrderNumber             bigquery.NullString `bigquery:"orderNumber"`
+	SKU                     bigquery.NullString `bigquery:"sku"`
+	Quantity                bigquery.NullInt64  `bigquery:"quantity"`
+	Origen                  bigquery.NullString `bigquery:"origen"`
+	StoreSelected           bigquery.NullString `bigquery:"storeSelected"`
+	FulfillmentType         bigquery.NullString `bigquery:"fulfillmentType"`
+	ProductType             bigquery.NullString `bigquery:"productType"`
+	Company                 bigquery.NullString `bigquery:"company"`
+	Channel                 bigquery.NullString `bigquery:"channel"`
+	MarketPlace             bigquery.NullString `bigquery:"marketPlace"`
+	PaymentMethod           bigquery.NullString `bigquery:"paymentMethod"`
+	ZipCode                 bigquery.NullString `bigquery:"zipCode"`
+	DestinationCity         bigquery.NullString `bigquery:"destinationCity"`
+	DestinationMunicipality bigquery.NullString `bigquery:"destinationMunicipality"`
+	DestinationSuburb       bigquery.NullString `bigquery:"destinationSuburb"`
+	DestinationStreet       bigquery.NullString `bigquery:"destinationStreet"`
+	CreatedAt               bigquery.NullString `bigquery:"createdAt"`
+	EDD1                    bigquery.NullString `bigquery:"edd1"`
+	EDD2                    bigquery.NullString `bigquery:"edd2"`
+	EstimatedDeliveryLabel  bigquery.NullString `bigquery:"estimatedDeliveryLabel"`
+	Plan                    bigquery.NullString `bigquery:"plan"`
+	HasError                bigquery.NullString `bigquery:"hasError"`
+	ErrorCode               bigquery.NullString `bigquery:"errorCode"`
+	ErrorMessage            bigquery.NullString `bigquery:"errorMessage"`
+	IsOk                    bigquery.NullString `bigquery:"isOk"`
+	Ticket                  bigquery.NullString `bigquery:"ticket"`
+	RecordID                bigquery.NullString `bigquery:"recordId"`
+	TipoEntrega             bigquery.NullString `bigquery:"tipoEntrega"`
+}
+
+func nullStringPtr(n bigquery.NullString) *string {
+	if !n.Valid {
+		return nil
+	}
+	return &n.StringVal
+}
+
+func nullInt64Ptr(n bigquery.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int64
+}
+
+func (r orderSearchRow) toModel() *model.OrderSearchLine {
+	return &model.OrderSearchLine{
+		OrderNumber:             r.OrderNumber.StringVal,
+		SKU:                     nullStringPtr(r.SKU),
+		Quantity:                nullInt64Ptr(r.Quantity),
+		Origen:                  nullStringPtr(r.Origen),
+		StoreSelected:           nullStringPtr(r.StoreSelected),
+		FulfillmentType:         nullStringPtr(r.FulfillmentType),
+		ProductType:             nullStringPtr(r.ProductType),
+		Company:                 nullStringPtr(r.Company),
+		Channel:                 nullStringPtr(r.Channel),
+		MarketPlace:             nullStringPtr(r.MarketPlace),
+		PaymentMethod:           nullStringPtr(r.PaymentMethod),
+		ZipCode:                 nullStringPtr(r.ZipCode),
+		DestinationCity:         nullStringPtr(r.DestinationCity),
+		DestinationMunicipality: nullStringPtr(r.DestinationMunicipality),
+		DestinationSuburb:       nullStringPtr(r.DestinationSuburb),
+		DestinationStreet:       nullStringPtr(r.DestinationStreet),
+		CreatedAt:               nullStringPtr(r.CreatedAt),
+		EDD1:                    nullStringPtr(r.EDD1),
+		EDD2:                    nullStringPtr(r.EDD2),
+		EstimatedDeliveryLabel:  nullStringPtr(r.EstimatedDeliveryLabel),
+		Plan:                    nullStringPtr(r.Plan),
+		HasError:                nullStringPtr(r.HasError),
+		ErrorCode:               nullStringPtr(r.ErrorCode),
+		ErrorMessage:            nullStringPtr(r.ErrorMessage),
+		IsOk:                    nullStringPtr(r.IsOk),
+		Ticket:                  nullStringPtr(r.Ticket),
+		RecordID:                nullStringPtr(r.RecordID),
+		TipoEntrega:             r.TipoEntrega.StringVal,
+	}
+}
+
+// SearchOrder busca una orden/remisión por número en FAC_EDD_ORDERS_TRN
+// (Decomm), sobre los últimos 180 días, sin importar la compañía. Devuelve
+// todas las líneas (SKUs) con su tipo de entrega ya clasificado.
+func (o *Orders) SearchOrder(ctx context.Context, orderNumber string) ([]*model.OrderSearchLine, error) {
+	const query = `
+		SELECT
+			orderNumber,
+			sku,
+			quantity,
+			origen,
+			storeSelected,
+			fulfillmentType,
+			productType,
+			company,
+			channel,
+			CAST(marketPlace AS STRING) AS marketPlace,
+			paymentMethod,
+			zipCode,
+			destinationCity,
+			destinationMunicipality,
+			destinationSuburb,
+			destinationStreet,
+			FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S', createdAt, 'America/Mexico_City') AS createdAt,
+			CAST(edd1 AS STRING) AS edd1,
+			CAST(edd2 AS STRING) AS edd2,
+			estimatedDeliveryLabel,
+			plan,
+			CAST(hasError AS STRING) AS hasError,
+			errorCode,
+			errorMessage,
+			CAST(isOk AS STRING) AS isOk,
+			ticket,
+			recordId,
+			CASE
+				WHEN edd1 IS NULL OR edd2 IS NULL THEN 'sin_edd'
+				WHEN edd1 = edd2 AND edd1 = DATE(createdAt, 'America/Mexico_City') THEN 'flash'
+				WHEN edd1 = edd2 AND edd1 = DATE_ADD(DATE(createdAt, 'America/Mexico_City'), INTERVAL 1 DAY) THEN 'siguiente_dia'
+				ELSE 'estandar'
+			END AS tipoEntrega
+		FROM ` + "`crp-pro-dig-edd.mus_pro_digital_prd_tbls.FAC_EDD_ORDERS_TRN`" + `
+		WHERE ingestionTimestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 180 DAY)
+			AND orderNumber = @orderNumber
+		ORDER BY edd1 NULLS LAST, sku
+	`
+
+	q := o.client.Query(query)
+	q.Parameters = []bigquery.QueryParameter{
+		{Name: "orderNumber", Value: orderNumber},
+	}
+
+	it, err := q.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("running order search query: %w", err)
+	}
+
+	lines := make([]*model.OrderSearchLine, 0)
+	for {
+		var row orderSearchRow
+		err := it.Next(&row)
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading order search results: %w", err)
+		}
+		lines = append(lines, row.toModel())
+	}
+
+	return lines, nil
 }
