@@ -3,13 +3,13 @@ module edd-panel-backend
 go 1.26.5
 
 require (
+	cloud.google.com/go v0.123.0
 	cloud.google.com/go/bigquery v1.83.0
 	github.com/joho/godotenv v1.5.1
 	google.golang.org/api v0.297.0
 )
 
 require (
-	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect

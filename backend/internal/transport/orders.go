@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -34,6 +35,10 @@ func (h *OrdersHandler) HandlerDeliveryTypes(w http.ResponseWriter, r *http.Requ
 
 func (h *OrdersHandler) HandlerOrderSearch(w http.ResponseWriter, r *http.Request) {
 	h.handleOrderSearch(w, r)
+}
+
+func (h *OrdersHandler) HandlerOrdersCSV(w http.ResponseWriter, r *http.Request) {
+	h.handleOrdersCSV(w, r)
 }
 
 func (h *OrdersHandler) handleGetOrdersSummary(w http.ResponseWriter, r *http.Request) {
@@ -188,4 +193,47 @@ func (h *OrdersHandler) handleOrderSearch(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *OrdersHandler) handleOrdersCSV(w http.ResponseWriter, r *http.Request) {
+	start := r.URL.Query().Get("start")
+	end := r.URL.Query().Get("end")
+	company := r.URL.Query().Get("company")
+	csvType := r.URL.Query().Get("type")
+	productType := r.URL.Query().Get("productType")
+	fulfillmentType := r.URL.Query().Get("fulfillmentType")
+	marketPlace := r.URL.Query().Get("marketPlace")
+
+	header, rows, filename, err := h.service.ExportOrdersCSV(start, end, company, csvType, productType, fulfillmentType, marketPlace)
+	if err != nil {
+		utils.Logging("ERROR", "Error exporting orders csv", "", map[string]any{
+			"query": r.URL.Query(),
+			"error": err.Error(),
+		})
+		switch {
+		case errors.Is(err, services.ErrMissingCSVParams),
+			errors.Is(err, services.ErrInvalidFulfillmentType),
+			errors.Is(err, services.ErrInvalidMarketPlace),
+			errors.Is(err, services.ErrInvalidCSVType):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": err.Error(),
+			})
+		case errors.Is(err, services.ErrNoCSVRows):
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("No se encontraron registros de Error o Plan B para este rango."))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("Error generando CSV: " + err.Error()))
+		}
+		return
+	}
+
+	csvBody := utils.CSVBOM + utils.BuildCSV(header, rows)
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("X-Total-Rows", strconv.Itoa(len(rows)))
+	_, _ = w.Write([]byte(csvBody))
 }

@@ -20,6 +20,7 @@ type OrdersRepository interface {
 	RecalculateOrders(ctx context.Context, startDate, endDate, company string) ([]*model.OrdersSummary, error)
 	GetDeliveryTypes(ctx context.Context, company, productType, startDate, endDate string) (*model.DeliveryTypesResult, error)
 	SearchOrder(ctx context.Context, orderNumber string) ([]*model.OrderSearchLine, error)
+	GetOrdersCSV(ctx context.Context, params OrdersCSVParams) ([]string, [][]string, error)
 }
 
 // productTypeVariants espeja al helper homónimo de server.js: 'BIG TICKET'/'BT'
