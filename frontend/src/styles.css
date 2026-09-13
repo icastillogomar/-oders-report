@@ -149,8 +149,11 @@ input {
    Layout
    ═══════════════════════════════════════════════════════════════ */
 .container {
+  flex: 1;
+  min-width: 0;
   max-width: 1400px;
-  margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
   padding: 32px 28px 48px;
   animation: fade-in var(--t-slow) ease-out;
 }
@@ -165,13 +168,15 @@ input {
      de marca del dashboard cambia en el futuro. */
   background: #833177;
   width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
 }
 
 .app-header__inner {
-  max-width: 1240px;
   height: 80px;
-  margin: 0 auto;
-  padding: 16px 40px;
+  padding: 16px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -227,56 +232,150 @@ input {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Tabs (segmented control)
+   Sidebar (organismo SideMenu del design system GLUE UI, sustituye
+   al selector de vista + tabs de compañía):
+   https://symmetrical-bassoon-g3k1nnl.pages.github.io/?path=/docs/organisms-sidemenu--documentation
    ═══════════════════════════════════════════════════════════════ */
-.tabs {
+.app-shell {
+  /* El header queda fijo (position: fixed) y sale del flujo normal,
+     por eso este margen compensa su alto para no quedar debajo. */
+  margin-top: 80px;
+  height: calc(100vh - 80px);
   display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 3px;
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 4px;
-  margin-bottom: 20px;
+  align-items: stretch;
+  overflow: hidden;
 }
 
-.tab-btn {
-  display: inline-flex;
+.sidebar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 232px;
+  height: 100%;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 12px 0;
+  overflow-y: auto;
+  transition: width var(--t-slow);
+  overflow-x: hidden;
+}
+
+.sidebar--collapsed {
+  width: 64px;
+}
+
+.sidebar__list {
+  list-style: none;
+}
+
+.sidebar__item {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: transparent;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 22px;
   border: none;
-  border-radius: var(--r-sm);
+  border-left: 3px solid transparent;
+  background: transparent;
   font-size: 14px;
-  font-weight: 600;
-  color: var(--brand-primary);
+  font-weight: 400;
+  color: var(--text-3);
   white-space: nowrap;
-  position: relative;
-  overflow: hidden;
+  text-align: left;
   transition: all var(--t-base);
 }
 
-.tab-btn:hover,
-.tab-btn:focus {
+.sidebar__item:hover,
+.sidebar__item:focus-visible {
+  background: var(--surface-2);
   color: var(--brand-primary-hover);
-  background: var(--brand-soft);
 }
 
-.tab-btn.active {
-  /* Tono oscuro fijo: marca la selección, no depende de :hover/:focus
-     (que se pierden al hacer click fuera del botón). */
-  background: var(--brand-primary-hover);
-  color: #fff;
+.sidebar__item .sidebar__icon {
+  flex: 0 0 auto;
+}
+
+.sidebar__item.active {
+  background: var(--border);
+  border-left-color: var(--brand-primary-hover);
+  color: var(--brand-primary-hover);
   font-weight: 600;
-  box-shadow: none;
 }
 
-.tab-btn.active:hover,
-.tab-btn.active:focus {
-  background: var(--brand-primary-dark);
+.sidebar__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar--collapsed .sidebar__label {
+  display: none;
+}
+
+.sidebar__submenu {
+  list-style: none;
+}
+
+.sidebar__subitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 22px 8px 46px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-3);
+  white-space: nowrap;
+  text-align: left;
+  transition: all var(--t-base);
+}
+
+.sidebar__subitem:hover,
+.sidebar__subitem:focus-visible {
+  background: var(--surface-2);
+  color: var(--brand-primary-hover);
+}
+
+.sidebar__subitem.active {
+  background: var(--surface-2);
+  color: var(--brand-primary-hover);
+  font-weight: 600;
+}
+
+.sidebar__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--text-3);
+  background: transparent;
+}
+
+.sidebar__subitem.active .sidebar__dot {
+  background: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+}
+
+.sidebar__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 8px auto 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text-3);
+  transition: all var(--t-base);
+}
+
+.sidebar__toggle:hover,
+.sidebar__toggle:focus-visible {
+  color: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -966,52 +1065,6 @@ footer code {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Selector de vista (Planes A/B · Tipos de Entrega)
-   ═══════════════════════════════════════════════════════════════ */
-.view-switch {
-  display: inline-flex;
-  gap: 3px;
-  background: var(--brand-primary-light);
-  border: none;
-  border-radius: var(--r-md);
-  padding: 4px;
-  margin-bottom: 14px;
-}
-
-.view-switch__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 16px;
-  border-radius: var(--r-sm);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--brand-primary);
-  position: relative;
-  overflow: hidden;
-  transition: all var(--t-base);
-}
-
-.view-switch__btn:hover,
-.view-switch__btn:focus {
-  color: var(--brand-primary-hover);
-  background: var(--brand-soft);
-}
-
-.view-switch__btn.active {
-  /* Tono oscuro fijo: marca la selección, no depende de :hover/:focus
-     (que se pierden al hacer click fuera del botón). */
-  background: var(--brand-primary-hover);
-  color: #fff;
-  box-shadow: none;
-}
-
-.view-switch__btn.active:hover,
-.view-switch__btn.active:focus {
-  background: var(--brand-primary-dark);
-}
-
-/* ═══════════════════════════════════════════════════════════════
    Ranking de asignaciones por tienda
    ═══════════════════════════════════════════════════════════════ */
 .store-rank__mktp {
@@ -1680,16 +1733,6 @@ footer code {
 @media (max-width: 720px) {
   .kpi-grid--5 {
     grid-template-columns: repeat(2, 1fr);
-  }
-  .view-switch {
-    width: 100%;
-  }
-  .view-switch__btn {
-    flex: 1;
-    justify-content: center;
-  }
-  .tabs {
-    justify-content: flex-start;
   }
   .store-rank__row {
     grid-template-columns: 30px 100px 1fr 64px;

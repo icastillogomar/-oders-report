@@ -19,6 +19,7 @@ import {
   EyeOff,
   ShoppingBag,
 } from 'lucide-react';
+import Sidebar from './components/Sidebar.jsx';
 import KpiCards from './components/KpiCards.jsx';
 import BarChart from './components/BarChart.jsx';
 import DeliveryKpis from './components/DeliveryKpis.jsx';
@@ -115,7 +116,46 @@ const QUICK_RANGES = [
   { key: 'mtd', label: 'Este mes', days: null },
 ];
 
-const MULTISITE_DECOMM = ['WS', 'DCK', 'GAP', 'PB', 'PBK', 'BRU'];
+const MULTISITE_DECOMM = ['WS', 'DCK', 'GAP', 'PB', 'PBK', 'BRU', 'BR', 'DPS', 'FAB', 'LVS', 'WLM'];
+
+/** Nombre comercial de cada boutique (código interno usado en `company` sigue siendo {SITE}_DECOMM) */
+const BOUTIQUE_LABELS = {
+  WS: 'Willian Sonoma',
+  DCK: 'Dockers',
+  GAP: 'GAP',
+  PB: 'Pottery Barn',
+  PBK: 'Pottery Barn Kids',
+  BRU: "Babys R'us",
+  BR: 'Banana Republic',
+  DPS: 'Dupuis',
+  FAB: 'Fabletics',
+  LVS: 'Livestore',
+  WLM: 'West Elm',
+};
+
+/** Config del sidebar: sustituye al selector de vista + tabs de compañía */
+const SIDEBAR_ITEMS = [
+  {
+    key: 'planes',
+    label: 'Historial de Remisiones',
+    icon: Layers,
+    submenu: [
+      { key: 'LP_DECOMM', label: 'Liverpool' },
+      { key: 'SBB_DECOMM', label: 'Suburbia' },
+      { key: 'LP_RECALC', label: 'Recalculadas' },
+      {
+        key: 'boutiques',
+        label: 'Boutiques',
+        // No es una sola compañía: agrupa los sitios de MULTISITE_DECOMM,
+        // que ahora se eligen con el filtro "Boutique" dentro del dashboard.
+        matchKeys: MULTISITE_DECOMM.map((site) => `${site}_DECOMM`),
+      },
+    ],
+  },
+  { key: 'entregas', label: 'Tipos de Entrega', icon: Zap },
+  { key: 'buscar', label: 'Buscar Orden', icon: PackageSearch },
+  { key: 'cotejar', label: 'Cotejar Lista', icon: FileSpreadsheet },
+];
 
 /** Normaliza el código de compañía para BigQuery (quita sufijos de vista) */
 const toBQCompany = (company) => {
@@ -391,105 +431,16 @@ function App() {
         </div>
       </header>
 
+      <div className="app-shell">
+      <Sidebar
+        items={SIDEBAR_ITEMS}
+        view={view}
+        onSelectView={switchView}
+        company={company}
+        onSelectCompany={setCompany}
+      />
+
       <div className="container">
-      {/* ─── Selector de vista ─── */}
-      <div className="view-switch" role="tablist" aria-label="Vista">
-        <button
-          role="tab"
-          aria-selected={view === 'planes'}
-          className={`view-switch__btn ${view === 'planes' ? 'active' : ''}`}
-          onClick={() => switchView('planes')}
-          onMouseDown={addRipple}
-        >
-          <Layers size={14} strokeWidth={2.2} />
-          Planes A / B
-        </button>
-        <button
-          role="tab"
-          aria-selected={view === 'entregas'}
-          className={`view-switch__btn ${view === 'entregas' ? 'active' : ''}`}
-          onClick={() => switchView('entregas')}
-          onMouseDown={addRipple}
-        >
-          <Zap size={14} strokeWidth={2.2} />
-          Tipos de Entrega
-        </button>
-        <button
-          role="tab"
-          aria-selected={view === 'buscar'}
-          className={`view-switch__btn ${view === 'buscar' ? 'active' : ''}`}
-          onClick={() => switchView('buscar')}
-          onMouseDown={addRipple}
-        >
-          <PackageSearch size={14} strokeWidth={2.2} />
-          Buscar Orden
-        </button>
-        <button
-          role="tab"
-          aria-selected={view === 'cotejar'}
-          className={`view-switch__btn ${view === 'cotejar' ? 'active' : ''}`}
-          onClick={() => switchView('cotejar')}
-          onMouseDown={addRipple}
-        >
-          <FileSpreadsheet size={14} strokeWidth={2.2} />
-          Cotejar Lista
-        </button>
-      </div>
-
-      {/* ─── Tabs compañía (no aplican a las vistas globales) ─── */}
-      {!isGlobalView && (
-      <div className="tabs" role="tablist" aria-label="Compañía">
-        {/* Decomm Principales */}
-        {view === 'planes' && (
-          <>
-            <button
-              role="tab"
-              aria-selected={company === 'LP_DECOMM'}
-              className={`tab-btn ${company === 'LP_DECOMM' ? 'active' : ''}`}
-              onClick={() => setCompany('LP_DECOMM')}
-              onMouseDown={addRipple}
-            >
-              LP Decomm
-            </button>
-            <button
-              role="tab"
-              aria-selected={company === 'SBB_DECOMM'}
-              className={`tab-btn ${company === 'SBB_DECOMM' ? 'active' : ''}`}
-              onClick={() => setCompany('SBB_DECOMM')}
-              onMouseDown={addRipple}
-            >
-              SBB Decomm
-            </button>
-
-            {/* Recalculo */}
-            <button
-              role="tab"
-              aria-selected={company === 'LP_RECALC'}
-              className={`tab-btn ${company === 'LP_RECALC' ? 'active' : ''}`}
-              onClick={() => setCompany('LP_RECALC')}
-              onMouseDown={addRipple}
-            >
-              Recalculo Decomm
-            </button>
-          </>
-        )}
-
-        {/* Multisite Decomm */}
-        {MULTISITE_DECOMM.map((site) => (
-          <button
-            key={site}
-            role="tab"
-            aria-selected={company === `${site}_DECOMM`}
-            className={`tab-btn ${company === `${site}_DECOMM` ? 'active' : ''}`}
-            onClick={() => setCompany(`${site}_DECOMM`)}
-            onMouseDown={addRipple}
-          >
-            {site} Decomm
-          </button>
-        ))}
-      </div>
-      )}
-
       {/* ─── Filtros (las vistas globales no usan rango de fechas) ─── */}
       {!isGlobalView && (
       <div className="filters-card">
@@ -582,6 +533,26 @@ function App() {
               <Store size={12} />
               Catálogo propio
             </button>
+          </div>
+        )}
+
+        {/* Filtro de boutique · exclusivo del dashboard "Boutiques"
+            (agrupa lo que antes eran los tabs WS/DCK/GAP/PB/PBK/BRU Decomm) */}
+        {view === 'planes' && MULTISITE_DECOMM.some((site) => company === `${site}_DECOMM`) && (
+          <div className="quick-ranges" role="group" aria-label="Boutique">
+            <span className="quick-ranges__label">
+              <Store size={12} /> Boutique
+            </span>
+            {MULTISITE_DECOMM.map((site) => (
+              <button
+                key={site}
+                type="button"
+                className={`chip ${company === `${site}_DECOMM` ? 'active' : ''}`}
+                onClick={() => setCompany(`${site}_DECOMM`)}
+              >
+                {BOUTIQUE_LABELS[site]}
+              </button>
+            ))}
           </div>
         )}
 
@@ -797,6 +768,7 @@ function App() {
       <footer>
         {viewDescription} · Fuente: <code>{reportSource}</code> · Hora local: América/México
       </footer>
+      </div>
       </div>
     </>
   );

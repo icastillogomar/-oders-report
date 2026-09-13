@@ -39,6 +39,7 @@ func main() {
 	ordersService := services.NewOrdersService(ordersRepository)
 	ordersHandler := transport.NewOrdersHandler(ordersService)
 	http.HandleFunc("/api/orders-decomm", ordersHandler.HandlerOrdersSummary)
+	http.HandleFunc("/api/orders-recalculate", ordersHandler.HandlerRecalculateOrders)
 
 	stackMiddlewares := middlewares.CreateStack(
 		middlewares.CorsMiddleware,

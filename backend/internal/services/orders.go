@@ -37,3 +37,17 @@ func (o *OrdersService) GetOrdersSummary(
 		endDate,
 	)
 }
+
+func (o *OrdersService) RecalculateOrders(
+	startDate, endDate, company string,
+) ([]*model.OrdersSummary, error) {
+	if company == "" || startDate == "" || endDate == "" {
+		return nil, fmt.Errorf("company, startDate, and endDate parameters are required")
+	}
+	return o.order.RecalculateOrders(
+		context.Background(),
+		startDate,
+		endDate,
+		company,
+	)
+}
