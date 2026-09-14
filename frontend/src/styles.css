@@ -709,6 +709,48 @@ input {
   animation: spin 0.7s linear infinite;
 }
 
+.btn-secondary .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.csv-export-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.csv-export-hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.csv-export-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: var(--danger-soft);
+  border-radius: var(--r-md);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #b50000;
+}
+
+.csv-export-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    Alerts
    ═══════════════════════════════════════════════════════════════ */

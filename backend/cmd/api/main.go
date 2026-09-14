@@ -44,10 +44,12 @@ func main() {
 	http.HandleFunc("/api/delivery-types", ordersHandler.HandlerDeliveryTypes)
 	http.HandleFunc("/api/order-search", ordersHandler.HandlerOrderSearch)
 	http.HandleFunc("/api/orders-csv", ordersHandler.HandlerOrdersCSV)
+	http.HandleFunc("/api/error-codes", ordersHandler.HandlerErrorCodes)
 
 	stackMiddlewares := middlewares.CreateStack(
 		middlewares.CorsMiddleware,
 		middlewares.RequestInterceptor,
+		middlewares.GzipMiddleware,
 	)
 
 	utils.Logging("INFO", "Starting server on :8080", "main", nil)

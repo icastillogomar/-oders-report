@@ -3,6 +3,7 @@ import {
   CalendarDays,
   RefreshCcw,
   AlertCircle,
+  Info,
   Inbox,
   Clock,
   BarChart3,
@@ -184,6 +185,8 @@ function App() {
   const [showErrorSeries, setShowErrorSeries] = useState(true);
   const [activeQuick, setActiveQuick] = useState(null);
   const [now, setNow] = useState(() => new Date());
+  const [csvExporting, setCsvExporting] = useState(false);
+  const [csvExportError, setCsvExportError] = useState(null);
 
   /* ── Fetch principal + rango previo (para tendencias) ──
      Acepta un rango explícito (usado por los chips de rango rápido, que deben
@@ -293,7 +296,11 @@ function App() {
     }
   }, [startDate, endDate, company, view, fulfillment, marketplace]);
 
-  const handleDownloadCSV = () => {
+  // Usa fetch (y no window.open) para no abrir una pestaña en blanco: así se
+  // puede mostrar el spinner en el botón y quedarse en la misma página.
+  const handleDownloadCSV = async () => {
+    if (csvExporting) return;
+
     const isRecalc = company.includes('RECALC');
     const type = isRecalc ? 'recalc' : 'decomm';
 
@@ -309,7 +316,35 @@ function App() {
     if (marketplace !== 'all' && company === 'LP_DECOMM') {
       url += `&marketPlace=${marketplace}`;
     }
-    window.open(url, '_blank');
+
+    setCsvExporting(true);
+    setCsvExportError(null);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const contentType = res.headers.get('content-type') || '';
+        const message = contentType.includes('application/json')
+          ? (await res.json())?.error
+          : await res.text();
+        throw new Error(message || `HTTP ${res.status}`);
+      }
+
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = /filename="?([^";]+)"?/.exec(disposition);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = match ? match[1] : 'reporte.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      setCsvExportError(err.message);
+    } finally {
+      setCsvExporting(false);
+    }
   };
 
   useEffect(() => {
@@ -601,15 +636,36 @@ function App() {
               className="btn-secondary"
               onClick={handleDownloadCSV}
               onMouseDown={addRipple}
-              disabled={loading || data.length === 0}
+              disabled={loading || csvExporting || data.length === 0}
               title="Descargar pedidos con Error o Plan B en CSV"
             >
-              <Download size={15} strokeWidth={2.4} />
-              Exportar
+              {csvExporting ? (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  Exportando…
+                </>
+              ) : (
+                <>
+                  <Download size={15} strokeWidth={2.4} />
+                  Exportar
+                </>
+              )}
             </button>
             )}
           </div>
         </div>
+        {view === 'planes' && (
+          <p className="csv-export-hint">
+            <Info size={13} strokeWidth={2.2} />
+            <span>El CSV exportado solo incluye pedidos con Error o Plan B.</span>
+          </p>
+        )}
+        {csvExportError && (
+          <p className="csv-export-error" role="alert">
+            <AlertCircle size={14} strokeWidth={2.2} />
+            <span>No se pudo exportar el CSV: {csvExportError}</span>
+          </p>
+        )}
       </div>
       )}
 

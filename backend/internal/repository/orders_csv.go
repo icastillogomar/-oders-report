@@ -39,16 +39,99 @@ type OrdersCSVParams struct {
 	MarketPlace     string
 }
 
+// OrdersCSVPageSize fija el tamaño de página del RowIterator para que los
+// flush hacia el cliente ocurran en fronteras predecibles, sin importar
+// cuántas filas tenga el resultado.
+const OrdersCSVPageSize = 2000
+
+// OrdersCSVStream es un cursor de solo lectura sobre el resultado de
+// GetOrdersCSV: entrega las filas una por una a medida que llegan de
+// BigQuery, en vez de materializar el resultado completo en memoria. Sigue
+// el mismo patrón que *sql.Rows — se llama Next() hasta que regrese false,
+// y entre llamadas Row() da la fila actual — para que el caller (transport)
+// pueda transmitir cada fila al cliente sin esperar a tenerlas todas.
+type OrdersCSVStream struct {
+	it         *bigquery.RowIterator
+	header     []string
+	totalRows  uint64
+	pending    []string
+	hasPending bool
+	current    []string
+	rowsRead   int64
+	err        error
+}
+
+// Header regresa los nombres de columna (orden de SELECT *). nil si Empty().
+func (s *OrdersCSVStream) Header() []string { return s.header }
+
+// Empty indica que la consulta no encontró ninguna fila.
+func (s *OrdersCSVStream) Empty() bool { return s.header == nil }
+
+// TotalRows es el total reportado por BigQuery tras la primera página.
+// Es una cifra "best effort" (el propio cliente documenta que puede venir
+// en 0 justo después de una inserción reciente); el conteo confiable es
+// RowsRead() una vez que el stream termina.
+func (s *OrdersCSVStream) TotalRows() uint64 { return s.totalRows }
+
+// RowsRead es cuántas filas se han entregado hasta el momento (o el total
+// real transmitido, una vez que el stream terminó).
+func (s *OrdersCSVStream) RowsRead() int64 { return s.rowsRead }
+
+// Err regresa el error de lectura si Next() terminó por una falla distinta
+// a agotar el resultado (iterator.Done no cuenta como error).
+func (s *OrdersCSVStream) Err() error { return s.err }
+
+// AtPageBoundary indica que ya se agotó la página actual del iterador: la
+// siguiente llamada a Next() dispara una petición de red. Es el punto
+// natural para hacer flush hacia el cliente.
+func (s *OrdersCSVStream) AtPageBoundary() bool {
+	return s.it.PageInfo().Remaining() == 0
+}
+
+// Next avanza el cursor. Regresa false al agotar el resultado o al fallar
+// (revisar Err() después para distinguir ambos casos).
+func (s *OrdersCSVStream) Next() bool {
+	if s.err != nil {
+		return false
+	}
+	if s.hasPending {
+		s.current = s.pending
+		s.pending = nil
+		s.hasPending = false
+		s.rowsRead++
+		return true
+	}
+
+	var row []bigquery.Value
+	err := s.it.Next(&row)
+	if errors.Is(err, iterator.Done) {
+		return false
+	}
+	if err != nil {
+		s.err = fmt.Errorf("reading orders csv results: %w", err)
+		return false
+	}
+
+	s.current = stringifyBQRow(row)
+	s.rowsRead++
+	return true
+}
+
+// Row regresa la fila actual, válida solo después de un Next() que haya
+// regresado true.
+func (s *OrdersCSVStream) Row() []string { return s.current }
+
 // GetOrdersCSV corre la consulta correspondiente al tipo pedido (summary,
-// decomm o recalc) y regresa TODAS las filas encontradas —sin LIMIT ni tope
-// de páginas— junto con los nombres de columna, en el mismo orden que
-// SELECT * expone en BigQuery. El RowIterator de la librería de Go pagina
-// automáticamente hasta agotar el resultado, así que no hace falta ningún
-// manejo especial para no truncar el export.
-func (o *Orders) GetOrdersCSV(ctx context.Context, p OrdersCSVParams) ([]string, [][]string, error) {
+// decomm o recalc) y regresa un cursor sobre TODAS las filas encontradas
+// —sin LIMIT ni tope de páginas—, para que el caller las transmita al
+// cliente a medida que llegan en vez de esperar a tenerlas todas en
+// memoria. Lee (peek) la primera fila antes de regresar: así se conoce el
+// encabezado (it.Schema) y si el resultado viene vacío, sin haber
+// comprometido ninguna respuesta HTTP todavía.
+func (o *Orders) GetOrdersCSV(ctx context.Context, p OrdersCSVParams) (*OrdersCSVStream, error) {
 	query, params, location, err := buildOrdersCSVQuery(p)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	q := o.client.Query(query)
@@ -59,30 +142,32 @@ func (o *Orders) GetOrdersCSV(ctx context.Context, p OrdersCSVParams) ([]string,
 
 	it, err := q.Read(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("running orders csv query: %w", err)
+		return nil, fmt.Errorf("running orders csv query: %w", err)
+	}
+	it.PageInfo().MaxSize = OrdersCSVPageSize
+
+	stream := &OrdersCSVStream{it: it}
+
+	var row []bigquery.Value
+	err = it.Next(&row)
+	if errors.Is(err, iterator.Done) {
+		return stream, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading orders csv results: %w", err)
 	}
 
-	var header []string
-	rows := make([][]string, 0)
-	for {
-		var row []bigquery.Value
-		err := it.Next(&row)
-		if errors.Is(err, iterator.Done) {
-			break
-		}
-		if err != nil {
-			return nil, nil, fmt.Errorf("reading orders csv results: %w", err)
-		}
-		if header == nil {
-			header = make([]string, len(it.Schema))
-			for i, f := range it.Schema {
-				header[i] = f.Name
-			}
-		}
-		rows = append(rows, stringifyBQRow(row))
+	header := make([]string, len(it.Schema))
+	for i, f := range it.Schema {
+		header[i] = f.Name
 	}
 
-	return header, rows, nil
+	stream.header = header
+	stream.totalRows = it.TotalRows
+	stream.pending = stringifyBQRow(row)
+	stream.hasPending = true
+
+	return stream, nil
 }
 
 func buildOrdersCSVQuery(p OrdersCSVParams) (string, []bigquery.QueryParameter, string, error) {

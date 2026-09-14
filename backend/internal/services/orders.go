@@ -99,6 +99,41 @@ func (o *OrdersService) GetDeliveryTypes(
 	)
 }
 
+// GetErrorCodes valida los filtros y regresa el desglose por errorCode de
+// los registros clasificados como Error en el rango.
+func (o *OrdersService) GetErrorCodes(
+	company, productType, fulfillmentType, startDate, endDate string,
+) (*model.ErrorCodesResult, error) {
+	var dateOnlyRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+	if startDate == "" {
+		startDate = "2026-05-01"
+	}
+	if endDate == "" {
+		endDate = "2026-05-28"
+	}
+	if company == "" {
+		company = "SB"
+	}
+
+	if !dateOnlyRegex.MatchString(startDate) || !dateOnlyRegex.MatchString(endDate) {
+		return nil, ErrInvalidDateFormat
+	}
+
+	if fulfillmentType != "" && !slices.Contains(repository.FulfillmentTypes, fulfillmentType) {
+		return nil, ErrInvalidFulfillmentType
+	}
+
+	return o.order.GetErrorCodes(
+		context.Background(),
+		company,
+		productType,
+		fulfillmentType,
+		startDate,
+		endDate,
+	)
+}
+
 func (o *OrdersService) SearchOrder(orderNumber string) ([]*model.OrderSearchLine, error) {
 	var orderNumberRegex = regexp.MustCompile(`^\d{6,20}$`)
 
@@ -110,21 +145,25 @@ func (o *OrdersService) SearchOrder(orderNumber string) ([]*model.OrderSearchLin
 }
 
 // ExportOrdersCSV valida los filtros del export y, si todo es correcto,
-// regresa el encabezado y TODAS las filas encontradas (sin truncar) más el
-// nombre de archivo sugerido, listos para que el transport arme el CSV.
+// regresa un cursor sobre TODAS las filas encontradas (sin truncar) más el
+// nombre de archivo sugerido, para que el transport las transmita al
+// cliente a medida que llegan de BigQuery en vez de esperar a tenerlas
+// todas en memoria. Recibe el context del request para poder cancelar la
+// lectura si el cliente corta la descarga a medias.
 func (o *OrdersService) ExportOrdersCSV(
+	ctx context.Context,
 	start, end, company, csvType, productType, fulfillmentType, marketPlace string,
-) (header []string, rows [][]string, filename string, err error) {
+) (stream *repository.OrdersCSVStream, filename string, err error) {
 	if start == "" || end == "" || company == "" || csvType == "" {
-		return nil, nil, "", ErrMissingCSVParams
+		return nil, "", ErrMissingCSVParams
 	}
 
 	if fulfillmentType != "" && !slices.Contains(repository.FulfillmentTypes, fulfillmentType) {
-		return nil, nil, "", ErrInvalidFulfillmentType
+		return nil, "", ErrInvalidFulfillmentType
 	}
 
 	if marketPlace != "" && marketPlace != "true" && marketPlace != "false" {
-		return nil, nil, "", ErrInvalidMarketPlace
+		return nil, "", ErrInvalidMarketPlace
 	}
 
 	var t repository.OrdersCSVType
@@ -132,10 +171,10 @@ func (o *OrdersService) ExportOrdersCSV(
 	case string(repository.OrdersCSVTypeSummary), string(repository.OrdersCSVTypeDecomm), string(repository.OrdersCSVTypeRecalc):
 		t = repository.OrdersCSVType(csvType)
 	default:
-		return nil, nil, "", ErrInvalidCSVType
+		return nil, "", ErrInvalidCSVType
 	}
 
-	header, rows, err = o.order.GetOrdersCSV(context.Background(), repository.OrdersCSVParams{
+	stream, err = o.order.GetOrdersCSV(ctx, repository.OrdersCSVParams{
 		Start:           start,
 		End:             end,
 		Company:         company,
@@ -145,13 +184,13 @@ func (o *OrdersService) ExportOrdersCSV(
 		MarketPlace:     marketPlace,
 	})
 	if err != nil {
-		return nil, nil, "", err
+		return nil, "", err
 	}
 
-	if len(rows) == 0 {
-		return nil, nil, "", ErrNoCSVRows
+	if stream.Empty() {
+		return nil, "", ErrNoCSVRows
 	}
 
 	filename = fmt.Sprintf("reporte_%s_%s_%s_%s.csv", company, csvType, start, end)
-	return header, rows, filename, nil
+	return stream, filename, nil
 }
