@@ -152,8 +152,6 @@ input {
   flex: 1;
   min-width: 0;
   max-width: 1400px;
-  height: 100%;
-  overflow-y: auto;
   padding: 32px 28px 48px;
   animation: fade-in var(--t-slow) ease-out;
 }
@@ -240,10 +238,8 @@ input {
   /* El header queda fijo (position: fixed) y sale del flujo normal,
      por eso este margen compensa su alto para no quedar debajo. */
   margin-top: 80px;
-  height: calc(100vh - 80px);
   display: flex;
-  align-items: stretch;
-  overflow: hidden;
+  align-items: flex-start;
 }
 
 .sidebar {
@@ -252,7 +248,12 @@ input {
   flex-direction: column;
   justify-content: space-between;
   width: 232px;
-  height: 100%;
+  /* Sticky en vez de un panel con su propio scroll interno: así solo hay
+     un scrollbar (el de la página) y el sidebar se queda fijo bajo el
+     header mientras el contenido principal se desplaza. */
+  position: sticky;
+  top: 80px;
+  height: calc(100vh - 80px);
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 12px 0;

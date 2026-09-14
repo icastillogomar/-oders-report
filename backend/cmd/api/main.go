@@ -45,6 +45,7 @@ func main() {
 	http.HandleFunc("/api/order-search", ordersHandler.HandlerOrderSearch)
 	http.HandleFunc("/api/orders-csv", ordersHandler.HandlerOrdersCSV)
 	http.HandleFunc("/api/error-codes", ordersHandler.HandlerErrorCodes)
+	http.HandleFunc("/api/orders-bulk-check", ordersHandler.HandlerOrdersBulkCheck)
 
 	stackMiddlewares := middlewares.CreateStack(
 		middlewares.CorsMiddleware,

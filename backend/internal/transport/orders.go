@@ -45,6 +45,10 @@ func (h *OrdersHandler) HandlerErrorCodes(w http.ResponseWriter, r *http.Request
 	h.handleGetErrorCodes(w, r)
 }
 
+func (h *OrdersHandler) HandlerOrdersBulkCheck(w http.ResponseWriter, r *http.Request) {
+	h.handleOrdersBulkCheck(w, r)
+}
+
 func (h *OrdersHandler) handleGetOrdersSummary(w http.ResponseWriter, r *http.Request) {
 	// Implement the logic to handle GET request for orders summary
 	productType := r.URL.Query().Get("productType")
@@ -338,4 +342,54 @@ func (h *OrdersHandler) handleOrdersCSV(w http.ResponseWriter, r *http.Request) 
 		"rows":      stream.RowsRead(),
 		"totalRows": stream.TotalRows(),
 	})
+}
+
+func (h *OrdersHandler) handleOrdersBulkCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		OrderNumbers []string `json:"orderNumbers"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		utils.Logging("ERROR", "Error decoding bulk check body", "", map[string]any{
+			"error": err.Error(),
+		})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": services.ErrBulkInvalidBody.Error(),
+		})
+		return
+	}
+
+	result, err := h.service.BulkCheckOrders(r.Context(), payload.OrderNumbers)
+	if err != nil {
+		utils.Logging("ERROR", "Error running bulk check", "", map[string]any{
+			"count": len(payload.OrderNumbers),
+			"error": err.Error(),
+		})
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case errors.Is(err, services.ErrBulkEmptyBody),
+			errors.Is(err, services.ErrBulkNoValidIDs),
+			errors.Is(err, services.ErrBulkBatchTooLarge):
+			w.WriteHeader(http.StatusBadRequest)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }

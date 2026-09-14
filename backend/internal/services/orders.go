@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"edd-panel-backend/internal/model"
 	"edd-panel-backend/internal/repository"
@@ -26,6 +27,37 @@ var (
 	ErrInvalidCSVType         = errors.New("tipo inválido (summary, decomm, recalc)")
 	ErrNoCSVRows              = errors.New("no se encontraron registros de error o plan b para este rango")
 )
+
+// Sentinels del cotejo masivo de órdenes.
+var (
+	ErrBulkEmptyBody     = errors.New("envía un arreglo orderNumbers con al menos un elemento")
+	ErrBulkInvalidBody   = errors.New("cuerpo JSON inválido")
+	ErrBulkNoValidIDs    = errors.New("ningún identificador del lote es válido (6 a 64 caracteres alfanuméricos)")
+	ErrBulkBatchTooLarge = fmt.Errorf("el lote excede el máximo de %d órdenes. Divide la petición.", BulkMaxBatch)
+)
+
+// BulkMaxBatch es el máximo de órdenes por petición de cotejo masivo.
+const BulkMaxBatch = 500
+
+// orderIDRegex acepta cualquier identificador alfanumérico: las remisiones
+// no son numéricas (conviven `sg2608090011688`, `KS0000438222` y UUIDs).
+var orderIDRegex = regexp.MustCompile(`^[A-Za-z0-9._-]{6,64}$`)
+
+// bareIDRegex solo aplica a IDs tipo `sg2608090011688` o `KS0000438222`:
+// prefijo de letras seguido únicamente de dígitos. Un UUID no genera
+// variante.
+var bareIDRegex = regexp.MustCompile(`^[A-Za-z]+(\d{6,})$`)
+
+// bareID regresa, como red de seguridad, la variante sin prefijo de letras
+// de un identificador (sg2608090011688 -> 2608090011688), por si la tabla
+// la guarda sin él.
+func bareID(id string) (string, bool) {
+	m := bareIDRegex.FindStringSubmatch(id)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
 
 type OrdersService struct {
 	order repository.OrdersRepository
@@ -193,4 +225,159 @@ func (o *OrdersService) ExportOrdersCSV(
 
 	filename = fmt.Sprintf("reporte_%s_%s_%s_%s.csv", company, csvType, start, end)
 	return stream, filename, nil
+}
+
+// BulkCheckOrders valida y depura el lote de órdenes recibido, busca sus
+// líneas en BigQuery (incluyendo la variante "sin prefijo" de cada ID como
+// red de seguridad) y regresa, para cada orden solicitada, su veredicto más
+// un resumen agregado del lote.
+func (o *OrdersService) BulkCheckOrders(ctx context.Context, raw []string) (*model.BulkCheckResult, error) {
+	if len(raw) == 0 {
+		return nil, ErrBulkEmptyBody
+	}
+
+	seen := make(map[string]struct{}, len(raw))
+	orderNumbers := make([]string, 0, len(raw))
+	for _, n := range raw {
+		id := strings.TrimSpace(n)
+		if !orderIDRegex.MatchString(id) {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		orderNumbers = append(orderNumbers, id)
+	}
+
+	invalidCount := len(raw) - len(orderNumbers)
+
+	if len(orderNumbers) == 0 {
+		return nil, ErrBulkNoValidIDs
+	}
+	if len(orderNumbers) > BulkMaxBatch {
+		return nil, ErrBulkBatchTooLarge
+	}
+
+	// Mapa variante -> id original solicitado, para regresar los resultados
+	// con el mismo identificador que mandó el usuario.
+	lookup := make(map[string]string, len(orderNumbers)*2)
+	variantsSeen := make(map[string]struct{}, len(orderNumbers)*2)
+	variants := make([]string, 0, len(orderNumbers)*2)
+	addVariant := func(v string) {
+		if _, ok := variantsSeen[v]; ok {
+			return
+		}
+		variantsSeen[v] = struct{}{}
+		variants = append(variants, v)
+	}
+	for _, id := range orderNumbers {
+		addVariant(id)
+		lookup[id] = id
+		if bare, ok := bareID(id); ok {
+			if _, exists := lookup[bare]; !exists {
+				addVariant(bare)
+				lookup[bare] = id
+			}
+		}
+	}
+
+	rows, err := o.order.BulkCheckOrders(ctx, variants)
+	if err != nil {
+		return nil, err
+	}
+
+	byOrder := make(map[string]*model.BulkCheckOrder, len(orderNumbers))
+	for _, num := range orderNumbers {
+		byOrder[num] = &model.BulkCheckOrder{
+			OrderNumber: num,
+			ErrorCodes:  []string{},
+			Plans:       []string{},
+			Detail:      []*model.BulkCheckDetailLine{},
+		}
+	}
+
+	errorCodeCounts := map[string]int{}
+	var totalLines int
+
+	for _, line := range rows {
+		totalLines++
+
+		code := ""
+		if line.ErrorCode != nil {
+			code = strings.TrimSpace(*line.ErrorCode)
+		}
+		flagged := line.HasError != nil && *line.HasError == "true"
+		if code != "" || flagged {
+			key := code
+			if key == "" {
+				key = "SIN_CODIGO"
+			}
+			errorCodeCounts[key]++
+		}
+
+		requested, matched := lookup[line.OrderNumber]
+		if !matched {
+			continue
+		}
+		entry := byOrder[requested]
+		entry.Found = true
+		if entry.MatchedAs == nil {
+			matchedAs := line.OrderNumber
+			entry.MatchedAs = &matchedAs
+		}
+		entry.Lines++
+		if entry.Company == nil {
+			entry.Company = line.Company
+		}
+		if entry.Channel == nil {
+			entry.Channel = line.Channel
+		}
+		if entry.CreatedAt == nil {
+			entry.CreatedAt = line.CreatedAt
+		}
+		if line.Plan != nil && !slices.Contains(entry.Plans, *line.Plan) {
+			entry.Plans = append(entry.Plans, *line.Plan)
+		}
+		if code != "" || flagged {
+			entry.LinesWithError++
+			if code != "" && !slices.Contains(entry.ErrorCodes, code) {
+				entry.ErrorCodes = append(entry.ErrorCodes, code)
+			}
+		}
+		entry.Detail = append(entry.Detail, line)
+	}
+
+	orders := make([]*model.BulkCheckOrder, 0, len(orderNumbers))
+	var foundCount, errorOrdersCount, matchedWithoutPrefixCount, linesWithErrorTotal int
+	for _, num := range orderNumbers {
+		entry := byOrder[num]
+		entry.HasError = entry.LinesWithError > 0
+		linesWithErrorTotal += entry.LinesWithError
+		if entry.Found {
+			foundCount++
+			if entry.HasError {
+				errorOrdersCount++
+			}
+			if entry.MatchedAs != nil && *entry.MatchedAs != entry.OrderNumber {
+				matchedWithoutPrefixCount++
+			}
+		}
+		orders = append(orders, entry)
+	}
+
+	return &model.BulkCheckResult{
+		Orders: orders,
+		Summary: model.BulkCheckSummary{
+			Requested:            len(orderNumbers),
+			Invalid:              invalidCount,
+			Found:                foundCount,
+			NotFound:             len(orderNumbers) - foundCount,
+			OrdersWithError:      errorOrdersCount,
+			MatchedWithoutPrefix: matchedWithoutPrefixCount,
+			TotalLines:           totalLines,
+			LinesWithError:       linesWithErrorTotal,
+			ErrorCodeCounts:      errorCodeCounts,
+		},
+	}, nil
 }

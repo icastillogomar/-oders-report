@@ -22,6 +22,7 @@ type OrdersRepository interface {
 	SearchOrder(ctx context.Context, orderNumber string) ([]*model.OrderSearchLine, error)
 	GetOrdersCSV(ctx context.Context, params OrdersCSVParams) (*OrdersCSVStream, error)
 	GetErrorCodes(ctx context.Context, company, productType, fulfillmentType, startDate, endDate string) (*model.ErrorCodesResult, error)
+	BulkCheckOrders(ctx context.Context, candidates []string) ([]*model.BulkCheckDetailLine, error)
 }
 
 // productTypeVariants espeja al helper homónimo de server.js: 'BIG TICKET'/'BT'
