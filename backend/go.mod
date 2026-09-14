@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go v0.123.0
 	cloud.google.com/go/bigquery v1.83.0
 	github.com/joho/godotenv v1.5.1
+	golang.org/x/text v0.41.0
 	google.golang.org/api v0.297.0
 )
 
@@ -43,7 +44,6 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
-	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect

@@ -28,6 +28,14 @@ var (
 	ErrNoCSVRows              = errors.New("no se encontraron registros de error o plan b para este rango")
 )
 
+// Sentinels del export CSV de un segmento de la dona de errorCode.
+var (
+	ErrCodesEmpty       = errors.New("el parámetro codes no trae ningún código válido")
+	ErrTooManyCodes     = fmt.Errorf("máximo %d códigos por descarga", repository.ErrorCodesCSVMaxCodes)
+	ErrCodeTooLong      = errors.New("código de error demasiado largo")
+	ErrNoErrorCodesRows = errors.New("no hay registros con error para ese segmento en el rango seleccionado")
+)
+
 // Sentinels del cotejo masivo de órdenes.
 var (
 	ErrBulkEmptyBody     = errors.New("envía un arreglo orderNumbers con al menos un elemento")
@@ -57,6 +65,34 @@ func bareID(id string) (string, bool) {
 		return "", false
 	}
 	return m[1], true
+}
+
+// parseErrorCodesFilter interpreta el parámetro `codes` de
+// /api/error-codes-csv: vacío o "all" (sin distinguir mayúsculas) significa
+// "sin filtro" (nil); cualquier otro valor se separa por comas, se
+// deduplica y se regresa (posiblemente vacío, si todo eran comas/espacios
+// vacíos) para que el caller decida qué error mostrar.
+func parseErrorCodesFilter(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.EqualFold(raw, "all") {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(parts))
+	codes := make([]string, 0, len(parts))
+	for _, part := range parts {
+		c := strings.TrimSpace(part)
+		if c == "" {
+			continue
+		}
+		if _, dup := seen[c]; dup {
+			continue
+		}
+		seen[c] = struct{}{}
+		codes = append(codes, c)
+	}
+	return codes
 }
 
 type OrdersService struct {
@@ -380,4 +416,82 @@ func (o *OrdersService) BulkCheckOrders(ctx context.Context, raw []string) (*mod
 			ErrorCodeCounts:      errorCodeCounts,
 		},
 	}, nil
+}
+
+// GetErrorCodesCSV valida los filtros y regresa las filas crudas detrás de
+// un segmento de la dona de errorCode (un código suelto, un grupo o el
+// universo completo de errores del rango), junto con el nombre de archivo
+// sugerido y si el resultado se truncó por el tope de filas.
+func (o *OrdersService) GetErrorCodesCSV(
+	ctx context.Context,
+	start, end, company, productType, fulfillmentType, rawCodes, label string,
+) (header []string, rows [][]string, truncated bool, filename string, err error) {
+	var dateOnlyRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+	if start == "" {
+		start = "2026-05-01"
+	}
+	if end == "" {
+		end = "2026-05-28"
+	}
+	if company == "" {
+		company = "SB"
+	}
+
+	if !dateOnlyRegex.MatchString(start) || !dateOnlyRegex.MatchString(end) {
+		return nil, nil, false, "", ErrInvalidDateFormat
+	}
+
+	if fulfillmentType != "" && !slices.Contains(repository.FulfillmentTypes, fulfillmentType) {
+		return nil, nil, false, "", ErrInvalidFulfillmentType
+	}
+
+	codes := parseErrorCodesFilter(rawCodes)
+	if codes != nil {
+		if len(codes) == 0 {
+			return nil, nil, false, "", ErrCodesEmpty
+		}
+		if len(codes) > repository.ErrorCodesCSVMaxCodes {
+			return nil, nil, false, "", ErrTooManyCodes
+		}
+		for _, c := range codes {
+			if len(c) > 64 {
+				return nil, nil, false, "", ErrCodeTooLong
+			}
+		}
+	}
+
+	header, rows, truncated, err = o.order.GetErrorCodesCSV(ctx, repository.ErrorCodesCSVParams{
+		Start:           start,
+		End:             end,
+		Company:         company,
+		ProductType:     productType,
+		FulfillmentType: fulfillmentType,
+		Codes:           codes,
+	})
+	if err != nil {
+		return nil, nil, false, "", err
+	}
+
+	if len(rows) == 0 {
+		return nil, nil, false, "", ErrNoErrorCodesRows
+	}
+
+	segmentLabel := label
+	if segmentLabel == "" {
+		if codes != nil {
+			segmentLabel = strings.Join(codes, "-")
+		} else {
+			segmentLabel = "todos"
+		}
+	}
+	segmento := repository.Slugify(segmentLabel, "segmento")
+
+	filename = fmt.Sprintf("errores_%s_%s_%s_%s", company, segmento, start, end)
+	if truncated {
+		filename += fmt.Sprintf("_PARCIAL-primeros-%d", repository.ErrorCodesCSVMaxRows)
+	}
+	filename += ".csv"
+
+	return header, rows, truncated, filename, nil
 }

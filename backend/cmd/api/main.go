@@ -46,6 +46,17 @@ func main() {
 	http.HandleFunc("/api/orders-csv", ordersHandler.HandlerOrdersCSV)
 	http.HandleFunc("/api/error-codes", ordersHandler.HandlerErrorCodes)
 	http.HandleFunc("/api/orders-bulk-check", ordersHandler.HandlerOrdersBulkCheck)
+	http.HandleFunc("/api/error-codes-csv", ordersHandler.HandlerErrorCodesCSV)
+
+	// Sirve el build del frontend (y su fallback a index.html) para
+	// cualquier ruta que no sea /api/*. En Cloud Run, el binario Go es lo
+	// único que corre en el contenedor: ya no hay un Express aparte
+	// haciendo express.static.
+	staticDir := os.Getenv("STATIC_DIR")
+	if staticDir == "" {
+		staticDir = "./frontend/dist"
+	}
+	http.Handle("/", transport.NewStaticHandler(staticDir))
 
 	stackMiddlewares := middlewares.CreateStack(
 		middlewares.CorsMiddleware,
@@ -53,8 +64,15 @@ func main() {
 		middlewares.GzipMiddleware,
 	)
 
-	utils.Logging("INFO", "Starting server on :8080", "main", nil)
-	if err := http.ListenAndServe(":8080", stackMiddlewares(http.DefaultServeMux)); err != nil {
+	// Cloud Run inyecta PORT en runtime (default 8080); en local dev cae a
+	// 8080, el mismo puerto al que vite.config.js ya le hace proxy.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	utils.Logging("INFO", fmt.Sprintf("Starting server on :%s", port), "main", nil)
+	if err := http.ListenAndServe(":"+port, stackMiddlewares(http.DefaultServeMux)); err != nil {
 		utils.Logging("ERROR", "Error starting server", "main", err.Error())
 		return
 	}

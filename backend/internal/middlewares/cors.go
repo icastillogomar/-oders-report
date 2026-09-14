@@ -10,7 +10,7 @@ func CorsMiddleware(next http.Handler) http.Handler {
 		// El frontend lee Content-Disposition (nombre de archivo) y
 		// X-Total-Rows en las descargas de CSV; sin exponerlos, fetch() no
 		// puede leerlos en un origen cruzado (mismo motivo que server.js:19).
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition, X-Total-Rows")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition, X-Total-Rows, X-Truncated")
 
 		// 4. Handle the browser preflight OPTIONS request
 		if r.Method == http.MethodOptions {

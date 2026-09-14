@@ -49,6 +49,10 @@ func (h *OrdersHandler) HandlerOrdersBulkCheck(w http.ResponseWriter, r *http.Re
 	h.handleOrdersBulkCheck(w, r)
 }
 
+func (h *OrdersHandler) HandlerErrorCodesCSV(w http.ResponseWriter, r *http.Request) {
+	h.handleGetErrorCodesCSV(w, r)
+}
+
 func (h *OrdersHandler) handleGetOrdersSummary(w http.ResponseWriter, r *http.Request) {
 	// Implement the logic to handle GET request for orders summary
 	productType := r.URL.Query().Get("productType")
@@ -392,4 +396,48 @@ func (h *OrdersHandler) handleOrdersBulkCheck(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *OrdersHandler) handleGetErrorCodesCSV(w http.ResponseWriter, r *http.Request) {
+	start := r.URL.Query().Get("start")
+	end := r.URL.Query().Get("end")
+	company := r.URL.Query().Get("company")
+	productType := r.URL.Query().Get("productType")
+	fulfillmentType := r.URL.Query().Get("fulfillmentType")
+	codes := r.URL.Query().Get("codes")
+	label := r.URL.Query().Get("label")
+
+	header, rows, truncated, filename, err := h.service.GetErrorCodesCSV(
+		r.Context(), start, end, company, productType, fulfillmentType, codes, label,
+	)
+	if err != nil {
+		utils.Logging("ERROR", "Error exporting error codes csv", "", map[string]any{
+			"query": r.URL.Query(),
+			"error": err.Error(),
+		})
+		switch {
+		case errors.Is(err, services.ErrInvalidDateFormat),
+			errors.Is(err, services.ErrInvalidFulfillmentType),
+			errors.Is(err, services.ErrCodesEmpty),
+			errors.Is(err, services.ErrTooManyCodes),
+			errors.Is(err, services.ErrCodeTooLong):
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(err.Error()))
+		case errors.Is(err, services.ErrNoErrorCodesRows):
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(err.Error()))
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("Error generando CSV: " + err.Error()))
+		}
+		return
+	}
+
+	csvBody := utils.CSVBOM + utils.BuildCSV(header, rows)
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("X-Total-Rows", strconv.Itoa(len(rows)))
+	w.Header().Set("X-Truncated", strconv.FormatBool(truncated))
+	_, _ = w.Write([]byte(csvBody))
 }
