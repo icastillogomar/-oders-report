@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   ShoppingBag,
+  Settings,
 } from 'lucide-react';
 import Sidebar from './components/Sidebar.jsx';
 import KpiCards from './components/KpiCards.jsx';
@@ -28,6 +29,7 @@ import DeliveryChart from './components/DeliveryChart.jsx';
 import StoreRanking from './components/StoreRanking.jsx';
 import OrderSearch from './components/OrderSearch.jsx';
 import BulkOrderCheck from './components/BulkOrderCheck.jsx';
+import OperationalConfig from './components/OperationalConfig.jsx';
 import ErrorCodePie from './components/ErrorCodePie.jsx';
 import { KpiSkeleton, ChartSkeleton } from './components/Skeleton.jsx';
 import CalendarWidget from './components/CalendarWidget.jsx';
@@ -156,6 +158,7 @@ const SIDEBAR_ITEMS = [
   { key: 'entregas', label: 'Tipos de Entrega', icon: Zap },
   { key: 'buscar', label: 'Buscar Orden', icon: PackageSearch },
   { key: 'cotejar', label: 'Cotejar Lista', icon: FileSpreadsheet },
+  { key: 'configuracion', label: 'Configuración', icon: Settings },
 ];
 
 /** Normaliza el código de compañía para BigQuery (quita sufijos de vista) */
@@ -197,8 +200,8 @@ function App() {
     const effectiveStart = range?.start ?? startDate;
     const effectiveEnd = range?.end ?? endDate;
 
-    /* Las vistas Buscar Orden y Cotejar manejan su propio fetch */
-    if (view === 'buscar' || view === 'cotejar') {
+    /* Las vistas Buscar Orden, Cotejar y Configuración manejan su propio fetch */
+    if (view === 'buscar' || view === 'cotejar' || view === 'configuracion') {
       setLoading(false);
       setError(null);
       return;
@@ -410,7 +413,7 @@ function App() {
   };
 
   /* Vistas globales: no dependen de compañía ni de rango de fechas */
-  const isGlobalView = view === 'buscar' || view === 'cotejar';
+  const isGlobalView = view === 'buscar' || view === 'cotejar' || view === 'configuracion';
 
   const rangeLabel = useMemo(() => {
     const opts = { day: '2-digit', month: 'short', year: 'numeric' };
@@ -432,6 +435,7 @@ function App() {
   );
 
   const reportSource = useMemo(() => {
+    if (view === 'configuracion') return 'edd_panel.operational_configurations';
     if (view === 'buscar' || view === 'cotejar' || view === 'entregas') return 'FAC_EDD_ORDERS_TRN';
     return company.includes('RECALC') ? 'FAC_EDD_RECALCULATE_TRN' : 'FAC_EDD_ORDERS_TRN';
   }, [company, view]);
@@ -442,6 +446,7 @@ function App() {
     if (view === 'cotejar') return 'Sube tu lista de órdenes y cotéjala: errorCode, porcentajes y no encontradas';
     if (view === 'buscar') return 'Consulta una orden o remisión: SKUs, tiendas, fechas estimadas y tipo de entrega';
     if (view === 'entregas') return 'Tipos de entrega (Flash, Siguiente Día, Estándar) y asignaciones por tienda';
+    if (view === 'configuracion') return 'Variables operativas que controlan los cálculos de FEE';
     return 'Distribución diaria de pedidos por plan: A, B y Error';
   }, [view]);
 
@@ -674,6 +679,9 @@ function App() {
 
       {/* ─── Vista Cotejar Lista ─── */}
       {view === 'cotejar' && <BulkOrderCheck />}
+
+      {/* ─── Vista Configuración ─── */}
+      {view === 'configuracion' && <OperationalConfig />}
 
       {/* ─── Estados ─── */}
       {!isGlobalView && error && (

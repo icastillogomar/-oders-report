@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"strconv"
 	"time"
 
@@ -14,8 +13,6 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-// FulfillmentTypes son los únicos valores aceptados para el filtro de tipo
-// de surtido (mismo catálogo que server.js).
 var FulfillmentTypes = []string{"Liverpool_CNC_PICK_PACK", "Fulfillment_Type_Liverpool"}
 
 // OrdersCSVType identifica cuál de las tres fuentes usar para el export.
@@ -39,17 +36,8 @@ type OrdersCSVParams struct {
 	MarketPlace     string
 }
 
-// OrdersCSVPageSize fija el tamaño de página del RowIterator para que los
-// flush hacia el cliente ocurran en fronteras predecibles, sin importar
-// cuántas filas tenga el resultado.
 const OrdersCSVPageSize = 2000
 
-// OrdersCSVStream es un cursor de solo lectura sobre el resultado de
-// GetOrdersCSV: entrega las filas una por una a medida que llegan de
-// BigQuery, en vez de materializar el resultado completo en memoria. Sigue
-// el mismo patrón que *sql.Rows — se llama Next() hasta que regrese false,
-// y entre llamadas Row() da la fila actual — para que el caller (transport)
-// pueda transmitir cada fila al cliente sin esperar a tenerlas todas.
 type OrdersCSVStream struct {
 	it         *bigquery.RowIterator
 	header     []string
@@ -61,35 +49,20 @@ type OrdersCSVStream struct {
 	err        error
 }
 
-// Header regresa los nombres de columna (orden de SELECT *). nil si Empty().
 func (s *OrdersCSVStream) Header() []string { return s.header }
 
-// Empty indica que la consulta no encontró ninguna fila.
 func (s *OrdersCSVStream) Empty() bool { return s.header == nil }
 
-// TotalRows es el total reportado por BigQuery tras la primera página.
-// Es una cifra "best effort" (el propio cliente documenta que puede venir
-// en 0 justo después de una inserción reciente); el conteo confiable es
-// RowsRead() una vez que el stream termina.
 func (s *OrdersCSVStream) TotalRows() uint64 { return s.totalRows }
 
-// RowsRead es cuántas filas se han entregado hasta el momento (o el total
-// real transmitido, una vez que el stream terminó).
 func (s *OrdersCSVStream) RowsRead() int64 { return s.rowsRead }
 
-// Err regresa el error de lectura si Next() terminó por una falla distinta
-// a agotar el resultado (iterator.Done no cuenta como error).
 func (s *OrdersCSVStream) Err() error { return s.err }
 
-// AtPageBoundary indica que ya se agotó la página actual del iterador: la
-// siguiente llamada a Next() dispara una petición de red. Es el punto
-// natural para hacer flush hacia el cliente.
 func (s *OrdersCSVStream) AtPageBoundary() bool {
 	return s.it.PageInfo().Remaining() == 0
 }
 
-// Next avanza el cursor. Regresa false al agotar el resultado o al fallar
-// (revisar Err() después para distinguir ambos casos).
 func (s *OrdersCSVStream) Next() bool {
 	if s.err != nil {
 		return false
@@ -117,19 +90,10 @@ func (s *OrdersCSVStream) Next() bool {
 	return true
 }
 
-// Row regresa la fila actual, válida solo después de un Next() que haya
-// regresado true.
 func (s *OrdersCSVStream) Row() []string { return s.current }
 
-// GetOrdersCSV corre la consulta correspondiente al tipo pedido (summary,
-// decomm o recalc) y regresa un cursor sobre TODAS las filas encontradas
-// —sin LIMIT ni tope de páginas—, para que el caller las transmita al
-// cliente a medida que llegan en vez de esperar a tenerlas todas en
-// memoria. Lee (peek) la primera fila antes de regresar: así se conoce el
-// encabezado (it.Schema) y si el resultado viene vacío, sin haber
-// comprometido ninguna respuesta HTTP todavía.
 func (o *Orders) GetOrdersCSV(ctx context.Context, p OrdersCSVParams) (*OrdersCSVStream, error) {
-	query, params, location, err := buildOrdersCSVQuery(p)
+	query, params, location, err := buildOrdersCSVQuery(p, o.location)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +134,7 @@ func (o *Orders) GetOrdersCSV(ctx context.Context, p OrdersCSVParams) (*OrdersCS
 	return stream, nil
 }
 
-func buildOrdersCSVQuery(p OrdersCSVParams) (string, []bigquery.QueryParameter, string, error) {
+func buildOrdersCSVQuery(p OrdersCSVParams, defaultLocation string) (string, []bigquery.QueryParameter, string, error) {
 	params := []bigquery.QueryParameter{
 		{Name: "start", Value: fmt.Sprintf("%s 00:00:00", p.Start)},
 		{Name: "end", Value: fmt.Sprintf("%s 00:00:00", p.End)},
@@ -217,11 +181,7 @@ func buildOrdersCSVQuery(p OrdersCSVParams) (string, []bigquery.QueryParameter, 
 			SELECT * EXCEPT(plan_ext, edd1_ext, edd2_ext) FROM clasificado WHERE clasificacion IN ('Error', 'Plan B')
 		`, fulfillmentFilter)
 
-		location := os.Getenv("BQ_LOCATION")
-		if location == "" {
-			location = "US"
-		}
-		return query, params, location, nil
+		return query, params, defaultLocation, nil
 
 	case OrdersCSVTypeDecomm:
 		params = append(params, bigquery.QueryParameter{Name: "company", Value: p.Company})
@@ -299,10 +259,6 @@ func buildOrdersCSVQuery(p OrdersCSVParams) (string, []bigquery.QueryParameter, 
 	}
 }
 
-// stringifyBQRow convierte una fila cruda de BigQuery ([]bigquery.Value,
-// tipos dinámicos porque la consulta usa SELECT *) a texto, análogo al
-// helper `csvValue` de server.js (NULL -> celda vacía, objetos con
-// value/fecha -> su representación en texto).
 func stringifyBQRow(row []bigquery.Value) []string {
 	out := make([]string, len(row))
 	for i, v := range row {

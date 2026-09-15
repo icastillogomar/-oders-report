@@ -26,9 +26,6 @@ type OrdersRepository interface {
 	GetErrorCodesCSV(ctx context.Context, params ErrorCodesCSVParams) (header []string, rows [][]string, truncated bool, err error)
 }
 
-// productTypeVariants espeja al helper homónimo de server.js: 'BIG TICKET'/'BT'
-// y 'SOFT LINE'/'SL' se tratan como sinónimos porque la columna productType en
-// BigQuery no está normalizada entre ambas grafías.
 func productTypeVariants(productType string) []string {
 	pt := strings.ToUpper(strings.TrimSpace(productType))
 	switch pt {
@@ -42,12 +39,14 @@ func productTypeVariants(productType string) []string {
 }
 
 type Orders struct {
-	client *bigquery.Client
+	client   *bigquery.Client
+	location string
 }
 
-func NewOrdersRepository(client *bigquery.Client) OrdersRepository {
+func NewOrdersRepository(client *bigquery.Client, bqLocation string) OrdersRepository {
 	return &Orders{
-		client: client,
+		client:   client,
+		location: bqLocation,
 	}
 }
 
